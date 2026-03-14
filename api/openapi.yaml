@@ -23,6 +23,22 @@ servers:
     description: Local development server
 
 paths:
+  /health:
+    get:
+      summary: Health check
+      description: Returns a simple liveness response.
+      tags:
+        - Health
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok
+
   /metrics:
     get:
       security:
