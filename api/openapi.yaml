@@ -6,7 +6,7 @@ info:
 
     ## Authentication
     If API key authentication is enabled (via `API_KEY` environment variable),
-    all endpoints except `/health` require authentication using one of these methods:
+    all endpoints except `/health`, `/`, and `/ui` require authentication using one of these methods:
     - Header: `X-API-Key: your-api-key`
     - Header: `Authorization: Bearer your-api-key`
 

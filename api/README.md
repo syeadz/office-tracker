@@ -32,7 +32,7 @@ export CORS_ORIGINS=http://localhost:3000,https://example.com
 
 ## Authentication
 
-If `API_KEY` is set, all endpoints except `GET /health` require auth.
+If `API_KEY` is set, all endpoints except `GET /health`, `GET /`, and `GET /ui` require auth.
 
 Supported headers:
 

@@ -224,6 +224,6 @@ docker run --rm -p 8080:8080 --env-file .env office-tracker:local
 
 ## Security
 
-- If `API_KEY` is set, all HTTP endpoints (except `/health`) require auth.
+- If `API_KEY` is set, all HTTP endpoints except `/health`, `/`, and `/ui` require auth.
 - Avoid `CORS_ORIGINS=*` in production.
 - Discord admin-only commands are enforced via Discord permissions.

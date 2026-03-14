@@ -32,5 +32,5 @@ Endpoint-level reference and request examples are maintained in `api/` to avoid 
 
 ## Security
 
-- If `API_KEY` is set, all HTTP endpoints (except `/health`) require authentication.
-- The management UI uses the same API key header.
+- If `API_KEY` is set, all HTTP endpoints except `/health`, `/`, and `/ui` require authentication.
+- The management UI page is public, but its API calls use the same API key header.

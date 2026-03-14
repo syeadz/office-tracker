@@ -63,8 +63,8 @@ func corsMiddleware(allowedOrigins string) func(http.Handler) http.Handler {
 func apiKeyMiddleware(apiKey string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Skip API key check for health endpoint
-			if r.URL.Path == "/health" {
+			// Skip API key check for public endpoints
+			if isPublicNoAuthPath(r.URL.Path) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -88,6 +88,10 @@ func apiKeyMiddleware(apiKey string) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func isPublicNoAuthPath(path string) bool {
+	return path == "/health" || path == "/" || path == "/ui" || strings.HasPrefix(path, "/ui/")
 }
 
 // ChainMiddleware applies multiple middlewares in order
