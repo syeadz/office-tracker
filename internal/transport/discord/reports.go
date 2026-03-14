@@ -125,12 +125,12 @@ func (d *ReportsDelivery) formatReportEmbed(report *domain.PeriodReport, reportT
 				medal = fmt.Sprintf("`%2d.` ", i+1)
 			}
 
-			leaderboard.WriteString(fmt.Sprintf("%s**%s** • %.1f hrs • %d visits\n",
+			fmt.Fprintf(&leaderboard, "%s**%s** • %.1f hrs • %d visits\n",
 				medal,
 				user.Name,
 				user.TotalHours,
 				user.VisitCount,
-			))
+			)
 		}
 	}
 

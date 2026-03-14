@@ -31,7 +31,7 @@ func TestSessionService_GetSessionByID(t *testing.T) {
 	session, err := sessionSvc.GetSessionByID(sessionID)
 	assert.NoError(t, err)
 	assert.NotNil(t, session)
-	assert.Equal(t, sessionID, session.Session.ID)
+	assert.Equal(t, sessionID, session.ID)
 	assert.Equal(t, user.ID, session.UserID)
 	assert.Equal(t, "GetSessionTest", session.UserName)
 }

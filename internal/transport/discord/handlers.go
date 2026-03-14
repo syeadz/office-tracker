@@ -193,8 +193,8 @@ func (b *Bot) handleCommand(s *discordgo.Session, i *discordgo.InteractionCreate
 func (b *Bot) handleButtonClick(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	customID := i.MessageComponentData().CustomID
 
-	switch {
-	case customID == "refresh_btn":
+	switch customID {
+	case "refresh_btn":
 		// Log who clicked the refresh button
 		user := interactionUser(i)
 		userID := "unknown"
@@ -225,7 +225,7 @@ func (b *Bot) handleButtonClick(s *discordgo.Session, i *discordgo.InteractionCr
 		// Render dashboard in background (non-blocking)
 		go b.renderDashboard(i.ChannelID)
 
-	case customID == "leaving_btn":
+	case "leaving_btn":
 		// Get user's Discord ID from interaction
 		user := interactionUser(i)
 		if user == nil {
