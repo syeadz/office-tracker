@@ -415,6 +415,7 @@ func getManagementUI() string {
             <div style="margin-bottom: 15px;">
                 <button onclick="loadSessions()" class="secondary">Refresh</button>
                 <button onclick="downloadSessionsCSV()" class="secondary">Download CSV</button>
+                <button onclick="downloadAllSessionsCSV()" class="secondary">Download All CSV</button>
                 <button onclick="bulkDeleteSessions()" class="danger">Delete Visible Results</button>
             </div>
             <h4>Advanced Filters</h4>
@@ -1550,6 +1551,18 @@ func getManagementUI() string {
             var query = params.toString();
             var url = API_BASE + '/api/sessions/export' + (query ? ('?' + query) : '');
 
+            downloadSessionsCSVFromURL(url, 'sessions');
+        }
+
+        function downloadAllSessionsCSV() {
+            var url = API_BASE + '/api/sessions/export?limit=0';
+
+            downloadSessionsCSVFromURL(url, 'sessions_all');
+        }
+
+        function downloadSessionsCSVFromURL(url, filePrefix) {
+            filePrefix = filePrefix || 'sessions';
+
             fetch(url, { headers: getHeaders() }).then(function(response) {
                 if (!response.ok) {
                     return response.text().then(function(error) {
@@ -1561,7 +1574,7 @@ func getManagementUI() string {
                 var downloadUrl = window.URL.createObjectURL(blob);
                 var a = document.createElement('a');
                 a.href = downloadUrl;
-                a.download = 'sessions_' + new Date().toISOString().split('T')[0] + '.csv';
+                a.download = filePrefix + '_' + new Date().toISOString().split('T')[0] + '.csv';
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
