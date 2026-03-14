@@ -1,0 +1,138 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.6'
+          cache: true
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+          args: --timeout=5m --disable=errcheck
+
+  test:
+    name: Unit/Race Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.6'
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test -v -race ./...
+
+  integration-test:
+    name: Integration (Tagged) Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.6'
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run integration tests
+        run: go test -v -tags=integration ./test/integration/...
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.6'
+          cache: true
+
+      - name: Build
+        run: go build -v -o office-tracker ./cmd/office
+
+      - name: Check if binary was created
+        run: test -f office-tracker
+
+  startup-smoke:
+    name: Startup Smoke Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.6'
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Boot app and verify /health
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          export HTTP_PORT=18080
+          export DB_PATH=/tmp/office-smoke.db
+          unset DISCORD_TOKEN
+          unset DISCORD_EXEC_GUILD_ID
+          unset DISCORD_COMMUNITY_GUILD_ID
+          unset DISCORD_REPORTS_CHANNEL_ID
+
+          go run ./cmd/office/main.go > /tmp/office-smoke.log 2>&1 &
+          APP_PID=$!
+
+          cleanup() {
+            if kill -0 "$APP_PID" 2>/dev/null; then
+              kill "$APP_PID" 2>/dev/null || true
+              wait "$APP_PID" 2>/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+
+          for _ in {1..45}; do
+            if curl -fsS "http://127.0.0.1:${HTTP_PORT}/health" > /dev/null; then
+              echo "Smoke test passed: /health reachable"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "Smoke test failed: app did not become healthy in time"
+          echo "--- startup logs ---"
+          cat /tmp/office-smoke.log || true
+          exit 1

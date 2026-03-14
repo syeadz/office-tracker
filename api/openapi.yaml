@@ -1,0 +1,2339 @@
+openapi: 3.0.3
+info:
+  title: Office Tracker API
+  description: |
+    REST API for tracking office attendance using RFID cards.
+
+    ## Authentication
+    If API key authentication is enabled (via `API_KEY` environment variable),
+    all endpoints except `/health` require authentication using one of these methods:
+    - Header: `X-API-Key: your-api-key`
+    - Header: `Authorization: Bearer your-api-key`
+
+    ## CORS
+    CORS can be enabled by setting the `CORS_ORIGINS` environment variable.
+    - Set to `*` to allow all origins
+    - Set to comma-separated list for specific origins (e.g., `http://localhost:3000,https://example.com`)
+  version: 1.0.0
+  contact:
+    name: Office Tracker Team
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+paths:
+  /metrics:
+    get:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Prometheus metrics
+      description: |
+        Exposes Prometheus-format metrics.
+
+        Includes:
+        - office_presence_active_users
+        - office_environment_temperature_celsius (fresh readings only)
+        - office_esp_health_up{device_id=...} (1=fresh, 0=stale)
+        - office_esp_health_uptime_seconds{device_id=...} (fresh readings only)
+        - office_esp_health_free_heap_bytes{device_id=...} (fresh readings only)
+        - office_esp_health_rssi_dbm{device_id=...} (fresh readings only)
+
+        Environmental metrics are omitted when the latest reading is stale.
+        ESP resource metrics are omitted when heartbeat data is stale.
+      tags:
+        - Metrics
+      responses:
+        "200":
+          description: Prometheus text exposition format
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: |
+                  # HELP office_presence_active_users Number of users currently checked in
+                  # TYPE office_presence_active_users gauge
+                  office_presence_active_users 3
+
+  /api/sessions/checkin:
+    post:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Check in a user
+      description: Create a new active session for a user
+      tags:
+        - Sessions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserSessionActionRequest"
+      responses:
+        "200":
+          description: User checked in successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSessionActionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/sessions/checkout:
+    post:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Check out a user
+      description: Close the active session for a user
+      tags:
+        - Sessions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserSessionActionRequest"
+      responses:
+        "200":
+          description: User checked out successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSessionActionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/users:
+    get:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: List and search users
+      description: Retrieve a list of users with optional search, sorting, and pagination
+      tags:
+        - Users
+      parameters:
+        - name: search
+          in: query
+          required: false
+          description: Search users by name (partial match)
+          schema:
+            type: string
+            example: John
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of results (default 50)
+          schema:
+            type: integer
+            minimum: 1
+            example: 50
+        - name: offset
+          in: query
+          required: false
+          description: Number of results to skip
+          schema:
+            type: integer
+            minimum: 0
+            example: 0
+        - name: order
+          in: query
+          required: false
+          description: Sort order (default 'asc')
+          schema:
+            type: string
+            enum: [asc, desc]
+            example: asc
+        - name: sort_by
+          in: query
+          required: false
+          description: Field to sort by (default 'name')
+          schema:
+            type: string
+            enum: [name, created_at]
+            example: name
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    post:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Create a new user
+      description: Register a new user in the system
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    delete:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Delete users (bulk)
+      description: |
+        Delete users matching filters.
+        Requires at least one filter (currently `search`) to prevent deleting all users.
+      tags:
+        - Users
+      parameters:
+        - name: search
+          in: query
+          required: false
+          description: Delete users with matching names (partial match)
+          schema:
+            type: string
+            example: John
+        - name: order
+          in: query
+          required: false
+          description: Sort order for filtered delete candidates
+          schema:
+            type: string
+            enum: [asc, desc]
+            example: asc
+      responses:
+        "200":
+          description: Users deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                    format: int64
+                    example: 3
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/users/export:
+    get:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Export users as CSV
+      description: Export all users to a CSV file
+      tags:
+        - Users
+      parameters:
+        - name: search
+          in: query
+          required: false
+          description: Search users by name (partial match)
+          schema:
+            type: string
+            example: John
+        - name: order
+          in: query
+          required: false
+          description: Sort order (default 'asc')
+          schema:
+            type: string
+            enum: [asc, desc]
+            example: asc
+        - name: sort_by
+          in: query
+          required: false
+          description: Field to sort by (default 'name')
+          schema:
+            type: string
+            enum: [name, created_at]
+            example: name
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of results (default 50)
+          schema:
+            type: integer
+            minimum: 1
+            example: 50
+        - name: offset
+          in: query
+          required: false
+          description: Number of results to skip
+          schema:
+            type: integer
+            minimum: 0
+            example: 0
+      responses:
+        "200":
+          description: CSV file with all users
+          content:
+            text/csv:
+              schema:
+                type: string
+                example: |
+                  Name,RFID_UID,DiscordID
+                  John Doe,ABC123456,123456789012345678
+                  Jane Smith,XYZ789012,987654321098765432
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/users/import:
+    post:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Import users from CSV
+      description: Import users from a CSV file (Name,RFID_UID,DiscordID)
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: CSV file to upload
+              required:
+                - file
+      responses:
+        "200":
+          description: Import completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  imported:
+                    type: integer
+                    description: Number of users successfully imported
+                    example: 10
+                  failed:
+                    type: integer
+                    description: Number of users that failed to import
+                    example: 2
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/users/{id}:
+    get:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Get user by ID
+      description: Retrieve a specific user by their ID
+      tags:
+        - Users
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    put:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Update user
+      description: Update a user's name, RFID UID, and Discord ID
+      tags:
+        - Users
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    delete:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Delete user
+      description: Delete a user by ID
+      tags:
+        - Users
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        "204":
+          description: User deleted successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/presence:
+    get:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Get active presence
+      description: Retrieve all currently active users in the office
+      tags:
+        - Sessions
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PresenceResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/sessions:
+    get:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: List sessions with filters
+      description: Retrieve sessions with optional filtering by date range, user name, sorting, and pagination
+      tags:
+        - Sessions
+      parameters:
+        - name: from
+          in: query
+          required: false
+          description: Filter sessions from this datetime (RFC3339 format)
+          schema:
+            type: string
+            format: date-time
+            example: "2026-02-01T00:00:00Z"
+        - name: to
+          in: query
+          required: false
+          description: Filter sessions until this datetime (RFC3339 format)
+          schema:
+            type: string
+            format: date-time
+            example: "2026-02-28T23:59:59Z"
+        - name: name
+          in: query
+          required: false
+          description: Filter sessions by user name (partial match)
+          schema:
+            type: string
+            example: John
+        - name: user_id
+          in: query
+          required: false
+          description: Filter sessions by user ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+        - name: discord_id
+          in: query
+          required: false
+          description: Filter sessions by Discord ID
+          schema:
+            type: string
+            example: "123456789012345678"
+        - name: status
+          in: query
+          required: false
+          description: Session status filter
+          schema:
+            type: string
+            enum: [all, active, completed]
+            example: completed
+        - name: active_only
+          in: query
+          required: false
+          description: Legacy status alias (`true` = active, `false` = completed)
+          schema:
+            type: boolean
+            example: false
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of results (default 100)
+          schema:
+            type: integer
+            minimum: 1
+            example: 100
+        - name: offset
+          in: query
+          required: false
+          description: Number of results to skip
+          schema:
+            type: integer
+            minimum: 0
+            example: 0
+        - name: order
+          in: query
+          required: false
+          description: Sort order (default 'desc')
+          schema:
+            type: string
+            enum: [asc, desc]
+            example: desc
+        - name: sort_by
+          in: query
+          required: false
+          description: Field to sort by (default 'check_in')
+          schema:
+            type: string
+            enum: [check_in, check_out, user_name]
+            example: check_in
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SessionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    delete:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Delete sessions (bulk)
+      description: |
+        Delete sessions matching filters.
+        At least one filter must be provided.
+        When `limit` or `offset` are supplied, only that ordered slice is deleted.
+      tags:
+        - Sessions
+      parameters:
+        - name: from
+          in: query
+          required: false
+          description: Delete sessions from this datetime (RFC3339)
+          schema:
+            type: string
+            format: date-time
+            example: "2026-02-01T00:00:00Z"
+        - name: to
+          in: query
+          required: false
+          description: Delete sessions until this datetime (RFC3339)
+          schema:
+            type: string
+            format: date-time
+            example: "2026-02-28T23:59:59Z"
+        - name: name
+          in: query
+          required: false
+          description: Delete sessions by user name (partial match)
+          schema:
+            type: string
+            example: John
+        - name: user_id
+          in: query
+          required: false
+          description: Delete sessions for a specific user ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+        - name: discord_id
+          in: query
+          required: false
+          description: Delete sessions for a specific Discord ID
+          schema:
+            type: string
+            example: "123456789012345678"
+        - name: status
+          in: query
+          required: false
+          description: Delete only sessions with the selected status
+          schema:
+            type: string
+            enum: [all, active, completed]
+            example: completed
+        - name: active_only
+          in: query
+          required: false
+          description: Legacy status alias (`true` = active, `false` = completed)
+          schema:
+            type: boolean
+            example: false
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of matching rows to delete from the ordered result set
+          schema:
+            type: integer
+            minimum: 1
+            example: 100
+        - name: offset
+          in: query
+          required: false
+          description: Number of matching rows to skip before deleting
+          schema:
+            type: integer
+            minimum: 0
+            example: 0
+        - name: order
+          in: query
+          required: false
+          description: Sort order applied before pagination (default `desc`)
+          schema:
+            type: string
+            enum: [asc, desc]
+            example: desc
+        - name: sort_by
+          in: query
+          required: false
+          description: Field used for ordered bulk delete pagination
+          schema:
+            type: string
+            enum: [check_in, check_out, user_name]
+            example: check_in
+      responses:
+        "200":
+          description: Sessions deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                    format: int64
+                    example: 15
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/sessions/count:
+    get:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Count sessions with filters
+      description: Retrieve the total number of sessions matching optional filters
+      tags:
+        - Sessions
+      parameters:
+        - name: from
+          in: query
+          required: false
+          description: Filter sessions from this datetime (RFC3339 format)
+          schema:
+            type: string
+            format: date-time
+            example: "2026-02-01T00:00:00Z"
+        - name: to
+          in: query
+          required: false
+          description: Filter sessions until this datetime (RFC3339 format)
+          schema:
+            type: string
+            format: date-time
+            example: "2026-02-28T23:59:59Z"
+        - name: name
+          in: query
+          required: false
+          description: Filter sessions by user name (partial match)
+          schema:
+            type: string
+            example: John
+        - name: user_id
+          in: query
+          required: false
+          description: Filter sessions by user ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+        - name: discord_id
+          in: query
+          required: false
+          description: Filter sessions by Discord ID
+          schema:
+            type: string
+            example: "123456789012345678"
+        - name: status
+          in: query
+          required: false
+          description: Session status filter
+          schema:
+            type: string
+            enum: [all, active, completed]
+            example: active
+        - name: active_only
+          in: query
+          required: false
+          description: Legacy status alias (`true` = active, `false` = completed)
+          schema:
+            type: boolean
+            example: false
+      responses:
+        "200":
+          description: Session count retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                    format: int64
+                    example: 248
+                required:
+                  - total
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/sessions/{id}:
+    put:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Update session times
+      description: Update check-in or check-out times for a session
+      tags:
+        - Sessions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Session ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSessionRequest"
+      responses:
+        "204":
+          description: Session updated successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    delete:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Delete session
+      description: Delete a session by ID
+      tags:
+        - Sessions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Session ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        "204":
+          description: Session deleted successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/sessions/export:
+    get:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Export sessions as CSV
+      description: Export sessions to a CSV file with optional date filtering
+      tags:
+        - Sessions
+      parameters:
+        - name: from
+          in: query
+          required: false
+          description: Filter sessions from this datetime (RFC3339 format)
+          schema:
+            type: string
+            format: date-time
+            example: "2026-02-01T00:00:00Z"
+        - name: to
+          in: query
+          required: false
+          description: Filter sessions until this datetime (RFC3339 format)
+          schema:
+            type: string
+            format: date-time
+            example: "2026-02-28T23:59:59Z"
+        - name: name
+          in: query
+          required: false
+          description: Filter sessions by user name (partial match)
+          schema:
+            type: string
+            example: John
+        - name: user_id
+          in: query
+          required: false
+          description: Filter sessions by user ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+        - name: discord_id
+          in: query
+          required: false
+          description: Filter sessions by Discord ID
+          schema:
+            type: string
+            example: "123456789012345678"
+        - name: status
+          in: query
+          required: false
+          description: Session status filter
+          schema:
+            type: string
+            enum: [all, active, completed]
+            example: active
+        - name: active_only
+          in: query
+          required: false
+          description: Legacy status alias (`true` = active, `false` = completed)
+          schema:
+            type: boolean
+            example: false
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of results (default 100)
+          schema:
+            type: integer
+            minimum: 1
+            example: 100
+        - name: offset
+          in: query
+          required: false
+          description: Number of results to skip
+          schema:
+            type: integer
+            minimum: 0
+            example: 0
+        - name: order
+          in: query
+          required: false
+          description: Sort order (default 'desc')
+          schema:
+            type: string
+            enum: [asc, desc]
+            example: desc
+        - name: sort_by
+          in: query
+          required: false
+          description: Field to sort by (default 'check_in')
+          schema:
+            type: string
+            enum: [check_in, check_out, user_name]
+            example: check_in
+      responses:
+        "200":
+          description: CSV file with sessions
+          content:
+            text/csv:
+              schema:
+                type: string
+                example: |
+                  UserName,CheckIn,CheckOut,Duration(minutes)
+                  John Doe,2026-02-15T09:00:00Z,2026-02-15T17:00:00Z,480.00
+                  Jane Smith,2026-02-15T10:00:00Z,,
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/sessions/open:
+    get:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Get all open sessions
+      description: |
+        Retrieve all currently open (not checked out) sessions with user information.
+        Returns SessionWithUser objects including user_name from JOIN query.
+      tags:
+        - Sessions
+      responses:
+        "200":
+          description: Successful response with array of SessionWithUser objects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Session"
+              example:
+                - id: 1
+                  user_id: 1
+                  user_name: John Doe
+                  check_in: "2026-02-15T09:00:00Z"
+                  check_out: null
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/sessions/user/{userId}:
+    get:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Get sessions for a user
+      description: |
+        Retrieve all sessions (open and closed) for a specific user with user information.
+        Returns SessionWithUser objects including user_name from JOIN query.
+      tags:
+        - Sessions
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: User ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        "200":
+          description: Successful response with array of SessionWithUser objects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Session"
+              example:
+                - id: 1
+                  user_id: 1
+                  user_name: John Doe
+                  check_in: "2026-02-15T09:00:00Z"
+                  check_out: "2026-02-15T17:00:00Z"
+                - id: 2
+                  user_id: 1
+                  user_name: John Doe
+                  check_in: "2026-02-14T08:30:00Z"
+                  check_out: "2026-02-14T16:30:00Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/sessions/checkout/{userId}:
+    post:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Check out a specific user
+      description: Sign out a user by checking out their active session
+      tags:
+        - Sessions
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: User ID to check out
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        "200":
+          description: User checked out successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "User checked out successfully"
+                  session_id:
+                    type: integer
+                    format: int64
+                    example: 123
+                  user_id:
+                    type: integer
+                    format: int64
+                    example: 1
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          description: User not found or has no active session
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "No active session found for this user"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/sessions/checkout-all:
+    post:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Check out all active sessions
+      description: Sign out all currently checked-in members at once (bulk checkout)
+      tags:
+        - Sessions
+      responses:
+        "200":
+          description: Bulk checkout completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Successfully checked out 5 session(s)"
+                  count:
+                    type: integer
+                    example: 5
+                  sessions:
+                    type: array
+                    items:
+                      type: string
+                    example:
+                      - "John Doe"
+                      - "Jane Smith"
+                      - "Bob Johnson"
+                      - "Alice Brown"
+                      - "Charlie Davis"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/environment:
+    get:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Get latest environmental reading
+      description: Retrieve the latest in-memory temperature reading together with freshness metadata.
+      tags:
+        - Environment
+      responses:
+        "200":
+          description: Latest environmental reading metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnvironmentResponse"
+    post:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Update latest environmental reading
+      description: Store the latest temperature reading in memory. Intended for ESP32 sensor updates.
+      tags:
+        - Environment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnvironmentUpsertRequest"
+      responses:
+        "200":
+          description: Environmental reading stored successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnvironmentResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/devices/health:
+    get:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: List latest ESP32 health statuses
+      description: Retrieve latest in-memory heartbeat status for each ESP32 device.
+      tags:
+        - Devices
+      responses:
+        "200":
+          description: Latest heartbeat statuses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ESPHealthStatusResponse"
+    post:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Upsert ESP32 health heartbeat
+      description: Store latest heartbeat data for an ESP32 device in memory.
+      tags:
+        - Devices
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ESPHealthUpsertRequest"
+      responses:
+        "200":
+          description: Heartbeat stored successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/statistics/leaderboard:
+    get:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Get leaderboard
+      description: Retrieve leaderboard statistics for a metric over a date range
+      tags:
+        - Statistics
+      parameters:
+        - name: rank_by
+          in: query
+          required: false
+          description: Preferred metric to rank the leaderboard by
+          schema:
+            type: string
+            enum: [hours, visits]
+            example: hours
+        - name: limit
+          in: query
+          required: false
+          description: Maximum results (default 10)
+          schema:
+            type: integer
+            minimum: 1
+            example: 10
+        - name: from
+          in: query
+          required: false
+          description: Start date (YYYY-MM-DD)
+          schema:
+            type: string
+            example: 2026-02-01
+        - name: to
+          in: query
+          required: false
+          description: End date (YYYY-MM-DD)
+          schema:
+            type: string
+            example: 2026-02-08
+        - name: include_auto_checkout
+          in: query
+          required: false
+          description: "Include non-RFID checkouts (including 04:00 auto-checkout) (default: false)"
+          schema:
+            type: boolean
+            example: false
+      responses:
+        "200":
+          description: Leaderboard results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaderboardResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/statistics/weekly:
+    get:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Get weekly report
+      description: Retrieve statistics for the current week
+      tags:
+        - Statistics
+      parameters:
+        - name: rank_by
+          in: query
+          required: false
+          description: Metric to rank the leaderboard by
+          schema:
+            type: string
+            enum: [hours, visits]
+            example: hours
+        - name: include_auto_checkout
+          in: query
+          required: false
+          description: "Include non-RFID checkouts (including 04:00 auto-checkout) (default: false)"
+          schema:
+            type: boolean
+            example: false
+      responses:
+        "200":
+          description: Weekly statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeriodStats"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/statistics/monthly:
+    get:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Get monthly report
+      description: Retrieve statistics for a specific month (defaults to current month)
+      tags:
+        - Statistics
+      parameters:
+        - name: rank_by
+          in: query
+          required: false
+          description: Metric to rank the leaderboard by
+          schema:
+            type: string
+            enum: [hours, visits]
+            example: hours
+        - name: year
+          in: query
+          required: false
+          description: Year (required if month is provided)
+          schema:
+            type: integer
+            example: 2026
+        - name: month
+          in: query
+          required: false
+          description: Month (1-12, required if year is provided)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+            example: 2
+        - name: include_auto_checkout
+          in: query
+          required: false
+          description: "Include non-RFID checkouts (including 04:00 auto-checkout) (default: false)"
+          schema:
+            type: boolean
+            example: false
+      responses:
+        "200":
+          description: Monthly statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeriodStats"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/statistics/report:
+    get:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Get custom report
+      description: Retrieve statistics for a custom date range
+      tags:
+        - Statistics
+      parameters:
+        - name: rank_by
+          in: query
+          required: false
+          description: Metric to rank the leaderboard by
+          schema:
+            type: string
+            enum: [hours, visits]
+            example: hours
+        - name: from
+          in: query
+          required: true
+          description: Start date (YYYY-MM-DD)
+          schema:
+            type: string
+            example: 2026-02-01
+        - name: to
+          in: query
+          required: true
+          description: End date (YYYY-MM-DD)
+          schema:
+            type: string
+            example: 2026-02-08
+        - name: limit
+          in: query
+          required: false
+          description: Top users limit (default 10)
+          schema:
+            type: integer
+            minimum: 1
+            example: 10
+        - name: include_auto_checkout
+          in: query
+          required: false
+          description: "Include non-RFID checkouts (including 04:00 auto-checkout) (default: false)"
+          schema:
+            type: boolean
+            example: false
+      responses:
+        "200":
+          description: Custom statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeriodStats"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/statistics/users/{id}:
+    get:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Get user statistics
+      description: Retrieve statistics for a specific user over a date range
+      tags:
+        - Statistics
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+        - name: from
+          in: query
+          required: false
+          description: Start date (YYYY-MM-DD)
+          schema:
+            type: string
+            example: 2026-02-01
+        - name: to
+          in: query
+          required: false
+          description: End date (YYYY-MM-DD)
+          schema:
+            type: string
+            example: 2026-02-08
+        - name: include_auto_checkout
+          in: query
+          required: false
+          description: "Include non-RFID checkouts (including 04:00 auto-checkout) (default: false)"
+          schema:
+            type: boolean
+            example: false
+      responses:
+        "200":
+          description: User statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserStats"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/reports/weekly:
+    get:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Get latest weekly report
+      description: Retrieve the latest generated weekly activity report with trends and leaderboards
+      tags:
+        - Reports
+      responses:
+        "200":
+          description: Weekly report data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyReport"
+        "404":
+          description: No report available yet
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: no report available
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/reports/status:
+    get:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Get reports status
+      description: Check whether scheduled weekly and monthly reports are enabled or disabled
+      tags:
+        - Reports
+      responses:
+        "200":
+          description: Current reports status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                    description: Whether reports are enabled
+                    example: true
+                  status:
+                    type: string
+                    description: Human-readable status
+                    enum: [enabled, disabled]
+                    example: enabled
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/reports/toggle:
+    post:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Toggle reports on/off
+      description: Enable or disable scheduled weekly and monthly reports at runtime. Requires administrator privileges.
+      tags:
+        - Reports
+      parameters:
+        - name: enabled
+          in: query
+          required: true
+          description: Set to 'true' to enable reports, 'false' to disable
+          schema:
+            type: string
+            enum: [true, false]
+            example: true
+      responses:
+        "200":
+          description: Reports toggled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: string
+                    enum: [enabled, disabled]
+                    example: enabled
+                  message:
+                    type: string
+                    example: Reports enabled successfully
+        "400":
+          description: Invalid or missing 'enabled' parameter
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "invalid 'enabled' value, must be 'true' or 'false'"
+        "405":
+          description: Method not allowed (only POST is supported)
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: method not allowed
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/rfid/scan:
+    post:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Scan RFID card
+      description: Process an RFID card scan for check-in or check-out
+      tags:
+        - Attendance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScanRequest"
+      responses:
+        "200":
+          description: Scan processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          description: Unknown card
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: unknown card
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/rfid/scans:
+    get:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Get scan history
+      description: Retrieve complete scan history including all RFID card scans (both known and unknown cards) with user information and action details. The system keeps track of the last 100 scans. Use the 'known' field to filter unknown cards.
+      tags:
+        - Attendance
+      responses:
+        "200":
+          description: Complete scan history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScanLog"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    delete:
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      summary: Clear scan history
+      description: Clear the complete scan history log
+      tags:
+        - Attendance
+      responses:
+        "204":
+          description: Scan history cleared successfully
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication (optional, configured via API_KEY env var)
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Bearer token authentication (alternative to X-API-Key)
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique user identifier
+          example: 1
+        name:
+          type: string
+          description: User's full name
+          example: John Doe
+        rfid_uid:
+          type: string
+          description: RFID card unique identifier
+          example: ABC123456
+        discord_id:
+          type: string
+          description: Discord user ID (optional)
+          example: "123456789012345678"
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when user was created
+          example: "2026-02-15T10:30:00Z"
+      required:
+        - id
+        - name
+        - rfid_uid
+        - created_at
+
+    UserResponse:
+      type: object
+      description: User response DTO (excludes sensitive fields)
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique user identifier
+          example: 1
+        name:
+          type: string
+          description: User's full name
+          example: John Doe
+        discord_id:
+          type: string
+          description: Discord user ID
+          example: "123456789012345678"
+      required:
+        - id
+        - name
+        - discord_id
+
+    SessionResponse:
+      type: object
+      description: Session response DTO with user information
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Session ID
+          example: 42
+        user_id:
+          type: integer
+          format: int64
+          description: User ID
+          example: 7
+        user_name:
+          type: string
+          description: Name of the user
+          example: John Doe
+        check_in:
+          type: string
+          format: date-time
+          description: Check-in timestamp
+          example: "2026-02-15T09:00:00Z"
+        check_out:
+          type: string
+          format: date-time
+          nullable: true
+          description: Check-out timestamp (null if still active)
+          example: "2026-02-15T17:00:00Z"
+        active:
+          type: boolean
+          description: Whether the session is currently active
+          example: false
+      required:
+        - id
+        - user_id
+        - user_name
+        - check_in
+        - active
+
+    PresenceResponse:
+      type: object
+      description: Presence response DTO for active users (excludes checkout since they are still in office)
+      properties:
+        user_name:
+          type: string
+          description: Name of the user currently in office
+          example: John Doe
+        check_in:
+          type: string
+          format: date-time
+          description: Check-in timestamp
+          example: "2026-02-15T09:00:00Z"
+      required:
+        - user_name
+        - check_in
+
+    CreateUserRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: User's full name
+          example: John Doe
+        rfid_uid:
+          type: string
+          description: RFID card unique identifier
+          example: ABC123456
+        discord_id:
+          type: string
+          description: Discord user ID (optional)
+          example: "123456789012345678"
+      required:
+        - name
+        - rfid_uid
+
+    Session:
+      type: object
+      description: Session with user information (used for /api/sessions/open and /api/sessions/user/{userId})
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique session identifier
+          example: 1
+        user_id:
+          type: integer
+          format: int64
+          description: ID of the user who owns this session
+          example: 1
+        user_name:
+          type: string
+          description: Name of the user
+          example: John Doe
+        check_in:
+          type: string
+          format: date-time
+          description: Check-in timestamp
+          example: "2026-02-15T09:00:00Z"
+        check_out:
+          type: string
+          format: date-time
+          nullable: true
+          description: Check-out timestamp (null if still open)
+          example: "2026-02-15T17:00:00Z"
+      required:
+        - id
+        - user_id
+        - user_name
+        - check_in
+
+    ScanRequest:
+      type: object
+      properties:
+        uid:
+          type: string
+          description: RFID card UID
+          example: ABC123456
+      required:
+        - uid
+
+    UpdateUserRequest:
+      type: object
+      description: Request body for updating user information
+      properties:
+        name:
+          type: string
+          description: User's full name
+          example: John Doe
+        discord_id:
+          type: string
+          description: Discord user ID
+          example: "123456789012345678"
+      required:
+        - name
+
+    UpdateSessionRequest:
+      type: object
+      description: Request body for updating session times
+      properties:
+        check_in:
+          type: string
+          format: date-time
+          description: Check-in timestamp
+          example: "2026-02-15T09:00:00Z"
+        check_out:
+          type: string
+          format: date-time
+          nullable: true
+          description: Check-out timestamp (null for active sessions)
+          example: "2026-02-15T17:00:00Z"
+
+    UserSessionActionRequest:
+      type: object
+      description: Request body for checking in/out a user
+      properties:
+        user_id:
+          type: integer
+          format: int64
+          example: 1
+      required:
+        - user_id
+
+    UserSessionActionResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: checked-in
+      required:
+        - status
+
+    EnvironmentUpsertRequest:
+      type: object
+      description: Request body sent by the ESP32 to publish the latest temperature reading.
+      properties:
+        temperature_c:
+          type: number
+          format: float
+          example: 24.6
+        timestamp:
+          type: string
+          format: date-time
+          description: Time when the sensor captured the reading
+          example: "2026-03-11T12:00:00Z"
+      required:
+        - temperature_c
+
+    EnvironmentResponse:
+      type: object
+      description: Latest temperature reading with freshness metadata.
+      properties:
+        available:
+          type: boolean
+          example: true
+        fresh:
+          type: boolean
+          example: true
+        temperature_c:
+          type: number
+          format: float
+          example: 24.6
+        timestamp:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-03-11T12:00:00Z"
+        age_seconds:
+          type: integer
+          format: int64
+          example: 42
+      required:
+        - available
+        - fresh
+
+    ESPHealthUpsertRequest:
+      type: object
+      description: In-memory heartbeat payload from ESP32 device.
+      properties:
+        device_id:
+          type: string
+          description: Optional device identifier. Defaults to "default" when omitted.
+          example: esp-lab-1
+        uptime_seconds:
+          type: integer
+          format: int64
+          minimum: 0
+          example: 3670
+        free_heap_bytes:
+          type: integer
+          format: int64
+          minimum: 0
+          example: 153248
+        wifi_connected:
+          type: boolean
+          example: true
+        rssi:
+          type: integer
+          example: -61
+        ip:
+          type: string
+          example: 192.168.1.55
+        firmware_version:
+          type: string
+          example: "1.3.0"
+        reset_reason:
+          type: string
+          example: power_on
+      required:
+        - uptime_seconds
+        - free_heap_bytes
+        - wifi_connected
+        - rssi
+
+    ESPHealthStatusResponse:
+      type: object
+      description: Latest in-memory heartbeat status for one ESP32 device.
+      properties:
+        device_id:
+          type: string
+          example: esp-lab-1
+        uptime_seconds:
+          type: integer
+          format: int64
+          example: 3670
+        free_heap_bytes:
+          type: integer
+          format: int64
+          example: 153248
+        wifi_connected:
+          type: boolean
+          example: true
+        rssi:
+          type: integer
+          example: -61
+        ip:
+          type: string
+          example: 192.168.1.55
+        firmware_version:
+          type: string
+          example: "1.3.0"
+        reset_reason:
+          type: string
+          example: power_on
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-03-11T19:00:00Z"
+        fresh:
+          type: boolean
+          example: true
+        age_seconds:
+          type: integer
+          format: int64
+          example: 42
+      required:
+        - device_id
+        - uptime_seconds
+        - free_heap_bytes
+        - wifi_connected
+        - rssi
+        - updated_at
+        - fresh
+        - age_seconds
+
+    UserStats:
+      type: object
+      description: Aggregated statistics for a user
+      properties:
+        user_id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          example: John Doe
+        discord_id:
+          type: string
+          example: "123456789012345678"
+        total_hours:
+          type: number
+          format: float
+          example: 12.5
+        visit_count:
+          type: integer
+          format: int64
+          example: 5
+        active_days:
+          type: integer
+          format: int64
+          example: 3
+        avg_duration:
+          type: number
+          format: float
+          example: 2.5
+        busiest_day:
+          type: string
+          format: date
+          example: "2026-02-05"
+        busiest_day_hours:
+          type: number
+          format: float
+          example: 4.0
+        last_visit:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-02-15T17:00:00Z"
+        first_visit:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-02-01T09:00:00Z"
+
+    PeriodStats:
+      type: object
+      description: Aggregated statistics for a time period
+      properties:
+        period:
+          type: string
+          example: "2026-02-01 to 2026-02-08"
+        period_type:
+          type: string
+          example: week
+        rank_by:
+          type: string
+          example: hours
+        start_date:
+          type: string
+          format: date-time
+          example: "2026-02-01T00:00:00Z"
+        end_date:
+          type: string
+          format: date-time
+          example: "2026-02-08T23:59:59Z"
+        total_hours:
+          type: number
+          format: float
+          example: 42.5
+        total_visits:
+          type: integer
+          format: int64
+          example: 18
+        active_days:
+          type: integer
+          format: int64
+          example: 5
+        unique_users:
+          type: integer
+          format: int64
+          example: 7
+        busiest_day:
+          type: string
+          format: date
+          example: "2026-02-06"
+        busiest_day_users:
+          type: integer
+          format: int64
+          example: 12
+        peak_occupancy:
+          type: integer
+          format: int64
+          example: 18
+        average_per_user:
+          type: number
+          format: float
+          example: 6.07
+        top_users:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserStats"
+
+    LeaderboardResponse:
+      type: object
+      description: Leaderboard statistics response
+      properties:
+        rank_by:
+          type: string
+          example: hours
+        period:
+          type: string
+          example: "2026-02-01 to 2026-02-08"
+        count:
+          type: integer
+          format: int64
+          example: 10
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserStats"
+      required:
+        - rank_by
+        - period
+        - count
+        - users
+
+    WeeklyReport:
+      type: object
+      description: Weekly activity report with trends and leaderboards
+      properties:
+        week_start:
+          type: string
+          format: date-time
+          description: Start of the reporting week
+          example: "2026-02-02T00:00:00Z"
+        week_end:
+          type: string
+          format: date-time
+          description: End of the reporting week
+          example: "2026-02-08T23:59:59Z"
+        total_hours:
+          type: number
+          format: float
+          description: Total office hours during the week
+          example: 42.5
+        total_visits:
+          type: integer
+          format: int64
+          description: Total number of office visits
+          example: 18
+        unique_users:
+          type: integer
+          format: int64
+          description: Number of unique users in the office
+          example: 7
+        active_days:
+          type: integer
+          format: int64
+          description: Number of days with activity
+          example: 5
+        busiest_day:
+          type: string
+          format: date
+          description: Day with the highest number of unique users
+          example: "2026-02-06"
+        busiest_day_users:
+          type: integer
+          format: int64
+          description: Number of unique users on the busiest day
+          example: 12
+        peak_occupancy:
+          type: integer
+          format: int64
+          description: Maximum concurrent users in the office
+          example: 18
+        trend:
+          type: object
+          description: Week-over-week comparison
+          properties:
+            hours_change_percent:
+              type: number
+              format: float
+              description: Percentage change in hours vs previous week
+              example: 12.5
+            visits_change_percent:
+              type: number
+              format: float
+              description: Percentage change in visits vs previous week
+              example: 8.3
+        leaderboard:
+          type: array
+          maxItems: 10
+          description: Top 10 contributors by hours worked
+          items:
+            type: object
+            properties:
+              rank:
+                type: integer
+                format: int64
+                example: 1
+              name:
+                type: string
+                example: John Doe
+              hours:
+                type: number
+                format: float
+                example: 10.5
+              visits:
+                type: integer
+                format: int64
+                example: 5
+      required:
+        - week_start
+        - week_end
+        - total_hours
+        - total_visits
+        - unique_users
+        - active_days
+        - busiest_day
+        - busiest_day_users
+        - peak_occupancy
+        - leaderboard
+
+    ScanResult:
+      type: object
+      properties:
+        User:
+          type: string
+          description: Name of the user who scanned
+          example: John Doe
+        Action:
+          type: string
+          enum: [check-in, check-out]
+          description: Action performed (check-in or check-out)
+          example: check-in
+      required:
+        - User
+        - Action
+
+    ScanLog:
+      type: object
+      description: Complete scan log entry with user information and action details. Use 'known' field to distinguish between known and unknown cards.
+      properties:
+        uid:
+          type: string
+          description: RFID card unique identifier
+          example: ABC123456
+        timestamp:
+          type: string
+          format: date-time
+          description: When the card was scanned
+          example: "2026-02-15T10:30:00Z"
+        user_name:
+          type: string
+          description: Name of the user (empty for unknown cards)
+          example: John Doe
+        known:
+          type: boolean
+          description: Whether the card was recognized
+          example: true
+        action:
+          type: string
+          enum: [check-in, check-out, ""]
+          description: Action performed (empty for unknown cards)
+          example: check-in
+      required:
+        - uid
+        - timestamp
+        - known
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: Invalid request
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: invalid request
+
+    NotFound:
+      description: Resource not found
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: user not found
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: database error

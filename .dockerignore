@@ -1,0 +1,50 @@
+# VCS
+.git
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*.iml
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+.directory
+
+# Build output
+/bin/
+/dist/
+/build/
+main
+office-tracker
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Tests/coverage
+*.test
+*.out
+*.cover
+
+# Dependencies
+vendor/
+
+# Environment
+.env
+.env.local
+
+# Database
+*.db*
+/data
+
+# Go workspace
+go.work
+
+# Logs
+*.log

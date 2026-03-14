@@ -1,0 +1,55 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.so.*
+*.dylib
+office-tracker
+main
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+*.cover
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+
+# Golang IDE
+.idea/
+*.swp
+*.swo
+*~
+.vscode/
+*.iml
+
+# macOS
+.DS_Store
+
+# Linux
+.directory
+
+# Windows
+Thumbs.db
+
+# Build output
+/bin/
+/dist/
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+*.sublime-workspace
+*.sublime-project
+
+# Database
+*.db*
+/data
