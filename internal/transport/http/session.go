@@ -95,6 +95,10 @@ func parseSessionCommonFilters(r *http.Request, filter *query.SessionFilter) err
 		return err
 	}
 
+	if err := applySessionCheckOutMethodQuery(filter, r); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -129,6 +133,24 @@ func applySessionStatusQuery(filter *query.SessionFilter, r *http.Request) error
 	}
 
 	return nil
+}
+
+func applySessionCheckOutMethodQuery(filter *query.SessionFilter, r *http.Request) error {
+	method := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("check_out_method")))
+	if method == "" || method == "all" {
+		return nil
+	}
+
+	switch method {
+	case repository.CheckOutMethodRFID,
+		repository.CheckOutMethodDiscord,
+		repository.CheckOutMethodAPI,
+		repository.CheckOutMethodAuto:
+		filter.CheckOutMethod = &method
+		return nil
+	default:
+		return fmt.Errorf("invalid check_out_method - must be 'all', 'rfid', 'discord', 'api', or 'auto'")
+	}
 }
 
 func NewSessionHandler(sessionSvc *service.SessionService) *SessionHandler {
@@ -477,7 +499,7 @@ func (h *SessionHandler) DeleteSessions(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Safety check - require at least one filter to prevent accidental delete all
-	if filter.From == nil && filter.To == nil && filter.NameLike == nil && filter.UserID == nil && filter.DiscordID == nil && filter.Status == "" {
+	if filter.From == nil && filter.To == nil && filter.NameLike == nil && filter.UserID == nil && filter.DiscordID == nil && filter.Status == "" && filter.CheckOutMethod == nil {
 		writeErrorJSON(w, http.StatusBadRequest, "filter required for bulk delete (e.g., ?from=date&to=date)")
 		return
 	}
@@ -565,7 +587,7 @@ func (h *SessionHandler) ExportSessionsCSV(w http.ResponseWriter, r *http.Reques
 	defer writer.Flush()
 
 	// Write header
-	writer.Write([]string{"UserName", "CheckIn", "CheckOut", "Duration(minutes)"})
+	writer.Write([]string{"UserName", "CheckIn", "CheckOut", "CheckOutMethod", "Duration(minutes)"})
 
 	// Write data
 	for _, s := range sessions {
@@ -579,7 +601,7 @@ func (h *SessionHandler) ExportSessionsCSV(w http.ResponseWriter, r *http.Reques
 			duration = fmt.Sprintf("%.2f", durationMinutes)
 		}
 
-		writer.Write([]string{s.UserName, checkInStr, checkOutStr, duration})
+		writer.Write([]string{s.UserName, checkInStr, checkOutStr, s.CheckOutMethod, duration})
 	}
 }
 

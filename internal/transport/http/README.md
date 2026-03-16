@@ -13,7 +13,7 @@ The web UI is served from `static.go` at `/` and `/ui` and provides:
 
 - Dashboard + live presence
 - User management (create/delete, CSV import/export)
-- Sessions and scans
+- Sessions and scans (including sign-out method visibility for completed sessions)
 - Office stats
 - Leaderboards (weekly/monthly/custom, hours or visits)
 - Member stats with rankings, percentages, and recent session history

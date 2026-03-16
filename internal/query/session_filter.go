@@ -16,8 +16,9 @@ type SessionFilter struct {
 	To   *time.Time
 
 	// presence
-	ActiveOnly bool
-	Status     string // "active", "completed", or empty for all
+	ActiveOnly     bool
+	Status         string  // "active", "completed", or empty for all
+	CheckOutMethod *string // "rfid", "discord", "api", "auto", or nil for all
 
 	// pagination
 	Limit  int

@@ -450,6 +450,16 @@ func getManagementUI() string {
                         <option value="completed">Completed Only</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <label>Sign-out Method</label>
+                    <select id="sessionCheckoutMethodFilter">
+                        <option value="all">All Methods</option>
+                        <option value="rfid">RFID</option>
+                        <option value="discord">Discord</option>
+                        <option value="api">API</option>
+                        <option value="auto">Auto</option>
+                    </select>
+                </div>
             </div>
             <div class="form-row">
                 <div class="form-group">
@@ -488,6 +498,7 @@ func getManagementUI() string {
                         <th>Check Out</th>
                         <th>Duration</th>
                         <th>Status</th>
+                        <th>Sign-out Method</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -712,6 +723,7 @@ func getManagementUI() string {
                     <tr>
                         <th>Check In</th>
                         <th>Check Out</th>
+                        <th>Sign-out Method</th>
                         <th>Duration (hrs)</th>
                     </tr>
                 </thead>
@@ -866,6 +878,19 @@ func getManagementUI() string {
             var minutes = String(date.getMinutes()).padStart(2, '0');
 
             return year + '-' + month + '-' + day + 'T' + hours + ':' + minutes;
+        }
+
+        function formatCheckOutMethod(method, isActive) {
+            if (isActive) return '—';
+            if (!method) return 'Unknown';
+
+            var normalized = String(method).toLowerCase();
+            if (normalized === 'rfid') return 'RFID';
+            if (normalized === 'discord') return 'Discord';
+            if (normalized === 'api') return 'API';
+            if (normalized === 'auto') return 'Auto';
+
+            return String(method).toUpperCase();
         }
 
         function loadDashboard() {
@@ -1258,6 +1283,7 @@ func getManagementUI() string {
             var from = document.getElementById('sessionFromFilter').value;
             var to = document.getElementById('sessionToFilter').value;
             var status = document.getElementById('sessionStatusFilter').value;
+            var checkOutMethod = document.getElementById('sessionCheckoutMethodFilter').value;
             var order = document.getElementById('sessionOrderBy').value;
             var sortBy = document.getElementById('sessionSortBy').value;
             var limit = document.getElementById('sessionLimit').value;
@@ -1269,6 +1295,7 @@ func getManagementUI() string {
             if (from) params.append('from', from);
             if (to) params.append('to', to);
             if (status && status !== 'all') params.append('status', status);
+            if (checkOutMethod && checkOutMethod !== 'all') params.append('check_out_method', checkOutMethod);
 
             if (options.includeOrdering !== false) {
                 if (order) params.append('order', order);
@@ -1286,7 +1313,7 @@ func getManagementUI() string {
         function renderSessionsTable(sessions) {
             var tbody = document.querySelector('#sessionsTable tbody');
             if (!sessions || sessions.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="muted">No sessions match the current filters.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="muted">No sessions match the current filters.</td></tr>';
                 return;
             }
 
@@ -1307,12 +1334,15 @@ func getManagementUI() string {
                     duration = activeHours + 'h ' + activeMinutes + 'm (active)';
                 }
 
+                var signOutMethod = formatCheckOutMethod(s.check_out_method, isActive);
+
                 return '<tr>' +
                     '<td>' + esc(s.user_name || '-') + '</td>' +
                     '<td>' + esc(checkIn ? checkIn.toLocaleString() : '-') + '</td>' +
                     '<td>' + esc(checkOut ? checkOut.toLocaleString() : '-') + '</td>' +
                     '<td>' + esc(duration) + '</td>' +
                     '<td><span class="badge ' + (isActive ? 'success' : 'info') + '">' + (isActive ? 'Active' : 'Completed') + '</span></td>' +
+                    '<td>' + esc(signOutMethod) + '</td>' +
                     '<td class="actions">' +
                         '<button class="btn-small" style="background: #28a745;" onclick="editSessionById(' + s.id + ')">Edit</button>' +
                         '<button class="btn-small danger" onclick="deleteSessionById(' + s.id + ')">Delete</button>' +
@@ -1526,6 +1556,7 @@ func getManagementUI() string {
             var from = document.getElementById('sessionFromFilter');
             var to = document.getElementById('sessionToFilter');
             var status = document.getElementById('sessionStatusFilter');
+            var checkOutMethod = document.getElementById('sessionCheckoutMethodFilter');
             var order = document.getElementById('sessionOrderBy');
             var sortBy = document.getElementById('sessionSortBy');
             var limit = document.getElementById('sessionLimit');
@@ -1537,6 +1568,7 @@ func getManagementUI() string {
             if (from) from.value = '';
             if (to) to.value = '';
             if (status) status.value = 'all';
+            if (checkOutMethod) checkOutMethod.value = 'all';
             if (order) order.value = 'desc';
             if (sortBy) sortBy.value = 'check_in';
             if (limit) limit.value = '100';
@@ -1845,6 +1877,7 @@ func getManagementUI() string {
             tbody.innerHTML = limited.map(function(s) {
                 var checkIn = s.check_in ? new Date(s.check_in) : null;
                 var checkOut = s.check_out ? new Date(s.check_out) : null;
+                var signOutMethod = formatCheckOutMethod(s.check_out_method, !checkOut);
                 var duration = 0;
                 if (checkIn && checkOut) {
                     duration = (checkOut - checkIn) / 36e5;
@@ -1852,6 +1885,7 @@ func getManagementUI() string {
                 return '<tr>' +
                     '<td>' + (checkIn ? checkIn.toLocaleString() : '—') + '</td>' +
                     '<td>' + (checkOut ? checkOut.toLocaleString() : '—') + '</td>' +
+                    '<td>' + esc(signOutMethod) + '</td>' +
                     '<td>' + (duration ? duration.toFixed(2) : '—') + '</td>' +
                     '</tr>';
             }).join('');

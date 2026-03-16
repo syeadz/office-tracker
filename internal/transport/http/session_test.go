@@ -192,6 +192,7 @@ func TestSessionHandler_ListSessions_StatusFilters(t *testing.T) {
 		expectedID     int64
 		expectedUserID int64
 		expectedActive bool
+		expectedMethod string
 	}{
 		{
 			name:           "status active",
@@ -199,6 +200,7 @@ func TestSessionHandler_ListSessions_StatusFilters(t *testing.T) {
 			expectedID:     activeSessionID,
 			expectedUserID: activeUser.ID,
 			expectedActive: true,
+			expectedMethod: "",
 		},
 		{
 			name:           "status completed",
@@ -206,6 +208,7 @@ func TestSessionHandler_ListSessions_StatusFilters(t *testing.T) {
 			expectedID:     completedSessionID,
 			expectedUserID: completedUser.ID,
 			expectedActive: false,
+			expectedMethod: repository.CheckOutMethodRFID,
 		},
 		{
 			name:           "legacy active_only true",
@@ -213,6 +216,7 @@ func TestSessionHandler_ListSessions_StatusFilters(t *testing.T) {
 			expectedID:     activeSessionID,
 			expectedUserID: activeUser.ID,
 			expectedActive: true,
+			expectedMethod: "",
 		},
 		{
 			name:           "legacy active_only false",
@@ -220,6 +224,15 @@ func TestSessionHandler_ListSessions_StatusFilters(t *testing.T) {
 			expectedID:     completedSessionID,
 			expectedUserID: completedUser.ID,
 			expectedActive: false,
+			expectedMethod: repository.CheckOutMethodRFID,
+		},
+		{
+			name:           "status completed with checkout method filter",
+			query:          "?status=completed&check_out_method=rfid",
+			expectedID:     completedSessionID,
+			expectedUserID: completedUser.ID,
+			expectedActive: false,
+			expectedMethod: repository.CheckOutMethodRFID,
 		},
 	}
 
@@ -239,6 +252,7 @@ func TestSessionHandler_ListSessions_StatusFilters(t *testing.T) {
 			assert.Equal(t, tt.expectedID, sessions[0].ID)
 			assert.Equal(t, tt.expectedUserID, sessions[0].UserID)
 			assert.Equal(t, tt.expectedActive, sessions[0].Active)
+			assert.Equal(t, tt.expectedMethod, sessions[0].CheckOutMethod)
 		})
 	}
 }
@@ -378,7 +392,7 @@ func TestExportSessionsCSV(t *testing.T) {
 			assert.Equal(t, http.StatusOK, w.Code)
 			assert.Equal(t, "text/csv", w.Header().Get("Content-Type"))
 			assert.Contains(t, w.Header().Get("Content-Disposition"), "attachment")
-			assert.Contains(t, w.Body.String(), "UserName,CheckIn,CheckOut,Duration(minutes)")
+			assert.Contains(t, w.Body.String(), "UserName,CheckIn,CheckOut,CheckOutMethod,Duration(minutes)")
 			assert.Contains(t, w.Body.String(), tt.expectUser)
 		})
 	}
@@ -618,6 +632,7 @@ func TestSessionHandler_ListSessions_InvalidFilters(t *testing.T) {
 		{"invalid to date", "?to=invalid"},
 		{"invalid user_id", "?user_id=abc"},
 		{"invalid status", "?status=stale"},
+		{"invalid check_out_method", "?check_out_method=manual"},
 		{"invalid active_only", "?active_only=maybe"},
 		{"invalid limit", "?limit=xyz"},
 		{"negative limit", "?limit=-5"},
@@ -651,7 +666,7 @@ func TestSessionHandler_ExportCSV_EmptyResult(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "text/csv", w.Header().Get("Content-Type"))
-	assert.Contains(t, w.Body.String(), "UserName,CheckIn,CheckOut,Duration(minutes)")
+	assert.Contains(t, w.Body.String(), "UserName,CheckIn,CheckOut,CheckOutMethod,Duration(minutes)")
 }
 
 func TestSessionHandler_DeleteSession_InvalidID(t *testing.T) {

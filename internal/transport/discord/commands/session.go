@@ -193,7 +193,7 @@ func (sc *SessionCommands) handleList(s *discordgo.Session, i *discordgo.Interac
 	for _, sess := range sessions {
 		status := "✅ Active"
 		if sess.CheckOut != nil {
-			status = fmt.Sprintf("❌ Checked out at <t:%d:R>", sess.CheckOut.Unix())
+			status = fmt.Sprintf("❌ Checked out (%s) <t:%d:R>", formatCheckOutMethod(sess.CheckOutMethod), sess.CheckOut.Unix())
 		}
 		sessionLines = append(sessionLines, fmt.Sprintf("**%s** - Checked in <t:%d:R> - %s",
 			sess.UserName, sess.CheckIn.Unix(), status))
@@ -251,9 +251,11 @@ func (sc *SessionCommands) handleGet(s *discordgo.Session, i *discordgo.Interact
 
 	status := "✅ Active"
 	checkOutTime := "Still checked in"
+	checkOutMethod := "N/A"
 	if sess.CheckOut != nil {
 		status = "❌ Checked Out"
 		checkOutTime = fmt.Sprintf("<t:%d:f> (<t:%d:R>)", sess.CheckOut.Unix(), sess.CheckOut.Unix())
+		checkOutMethod = formatCheckOutMethod(sess.CheckOutMethod)
 	}
 
 	duration := ""
@@ -279,6 +281,7 @@ func (sc *SessionCommands) handleGet(s *discordgo.Session, i *discordgo.Interact
 			{Name: "Status", Value: status, Inline: true},
 			{Name: "Checked In", Value: fmt.Sprintf("<t:%d:f> (<t:%d:R>)", sess.CheckIn.Unix(), sess.CheckIn.Unix()), Inline: false},
 			{Name: "Checked Out", Value: checkOutTime, Inline: false},
+			{Name: "Sign-out Method", Value: checkOutMethod, Inline: true},
 			{Name: "Duration", Value: duration, Inline: true},
 		},
 	}
@@ -331,4 +334,21 @@ func (sc *SessionCommands) handleActive(s *discordgo.Session, i *discordgo.Inter
 	}
 
 	respondEphemeralEmbed(s, i, embed)
+}
+
+func formatCheckOutMethod(method string) string {
+	switch method {
+	case repository.CheckOutMethodRFID:
+		return "RFID"
+	case repository.CheckOutMethodDiscord:
+		return "Discord"
+	case repository.CheckOutMethodAPI:
+		return "API"
+	case repository.CheckOutMethodAuto:
+		return "Auto"
+	case "":
+		return "N/A"
+	default:
+		return strings.ToUpper(method)
+	}
 }

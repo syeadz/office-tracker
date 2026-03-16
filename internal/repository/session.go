@@ -105,17 +105,21 @@ func (r *SessionRepo) GetOpenSession(userID int64) (int64, error) {
 // Returns SessionWithUser to include the user name in a single query.
 func (r *SessionRepo) FindByID(id int64) (*SessionWithUser, error) {
 	row := r.DB.QueryRow(`
-		SELECT s.id, s.user_id, s.check_in, s.check_out, u.name
+		SELECT s.id, s.user_id, s.check_in, s.check_out, s.check_out_method, u.name
 		FROM sessions s
 		JOIN users u ON s.user_id = u.id
 		WHERE s.id = ?
 		LIMIT 1`, id)
 
 	var s domain.Session
+	var checkOutMethod sql.NullString
 	var userName string
-	err := row.Scan(&s.ID, &s.UserID, &s.CheckIn, &s.CheckOut, &userName)
+	err := row.Scan(&s.ID, &s.UserID, &s.CheckIn, &s.CheckOut, &checkOutMethod, &userName)
 	if err != nil {
 		return nil, err
+	}
+	if checkOutMethod.Valid {
+		s.CheckOutMethod = checkOutMethod.String
 	}
 
 	return &SessionWithUser{
@@ -154,7 +158,7 @@ func (r *SessionRepo) CheckOutWithMethod(sessionID int64, method string) error {
 // Returns SessionWithUser to avoid N+1 queries.
 func (r *SessionRepo) List(filter query.SessionFilter) ([]*SessionWithUser, error) {
 	// Build query dynamically based on filter
-	q := `SELECT s.id, s.user_id, s.check_in, s.check_out, u.name
+	q := `SELECT s.id, s.user_id, s.check_in, s.check_out, s.check_out_method, u.name
           FROM sessions s
           JOIN users u ON s.user_id = u.id`
 
@@ -172,6 +176,10 @@ func (r *SessionRepo) List(filter query.SessionFilter) ([]*SessionWithUser, erro
 	if filter.DiscordID != nil {
 		where = append(where, "u.discord_id = ?")
 		args = append(args, *filter.DiscordID)
+	}
+	if filter.CheckOutMethod != nil {
+		where = append(where, "s.check_out_method = ?")
+		args = append(args, *filter.CheckOutMethod)
 	}
 	if filter.From != nil {
 		where = append(where, "s.check_in >= ?")
@@ -207,9 +215,13 @@ func (r *SessionRepo) List(filter query.SessionFilter) ([]*SessionWithUser, erro
 	var sessions []*SessionWithUser
 	for rows.Next() {
 		var s domain.Session
+		var checkOutMethod sql.NullString
 		var userName string
-		if err := rows.Scan(&s.ID, &s.UserID, &s.CheckIn, &s.CheckOut, &userName); err != nil {
+		if err := rows.Scan(&s.ID, &s.UserID, &s.CheckIn, &s.CheckOut, &checkOutMethod, &userName); err != nil {
 			return nil, err
+		}
+		if checkOutMethod.Valid {
+			s.CheckOutMethod = checkOutMethod.String
 		}
 		sessions = append(sessions, &SessionWithUser{
 			Session:  &s,
@@ -239,6 +251,10 @@ func (r *SessionRepo) Count(filter query.SessionFilter) (int64, error) {
 	if filter.DiscordID != nil {
 		where = append(where, "u.discord_id = ?")
 		args = append(args, *filter.DiscordID)
+	}
+	if filter.CheckOutMethod != nil {
+		where = append(where, "s.check_out_method = ?")
+		args = append(args, *filter.CheckOutMethod)
 	}
 	if filter.From != nil {
 		where = append(where, "s.check_in >= ?")
@@ -317,6 +333,10 @@ func (r *SessionRepo) DeleteWithFilter(filter query.SessionFilter) (int64, error
 	if filter.DiscordID != nil {
 		where = append(where, "u.discord_id = ?")
 		args = append(args, *filter.DiscordID)
+	}
+	if filter.CheckOutMethod != nil {
+		where = append(where, "s.check_out_method = ?")
+		args = append(args, *filter.CheckOutMethod)
 	}
 	if filter.From != nil {
 		where = append(where, "s.check_in >= ?")

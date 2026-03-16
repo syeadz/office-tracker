@@ -555,6 +555,14 @@ paths:
           schema:
             type: boolean
             example: false
+        - name: check_out_method
+          in: query
+          required: false
+          description: Filter completed sessions by sign-out source (`all` disables this filter)
+          schema:
+            type: string
+            enum: [all, rfid, discord, api, auto]
+            example: rfid
         - name: limit
           in: query
           required: false
@@ -667,6 +675,14 @@ paths:
           schema:
             type: boolean
             example: false
+        - name: check_out_method
+          in: query
+          required: false
+          description: Delete only sessions with the selected sign-out source (`all` disables this filter)
+          schema:
+            type: string
+            enum: [all, rfid, discord, api, auto]
+            example: rfid
         - name: limit
           in: query
           required: false
@@ -780,6 +796,14 @@ paths:
           schema:
             type: boolean
             example: false
+        - name: check_out_method
+          in: query
+          required: false
+          description: Filter completed sessions by sign-out source (`all` disables this filter)
+          schema:
+            type: string
+            enum: [all, rfid, discord, api, auto]
+            example: rfid
       responses:
         "200":
           description: Session count retrieved successfully
@@ -926,6 +950,14 @@ paths:
           schema:
             type: boolean
             example: false
+        - name: check_out_method
+          in: query
+          required: false
+          description: Filter completed sessions by sign-out source (`all` disables this filter)
+          schema:
+            type: string
+            enum: [all, rfid, discord, api, auto]
+            example: rfid
         - name: limit
           in: query
           required: false
@@ -966,9 +998,9 @@ paths:
               schema:
                 type: string
                 example: |
-                  UserName,CheckIn,CheckOut,Duration(minutes)
-                  John Doe,2026-02-15T09:00:00Z,2026-02-15T17:00:00Z,480.00
-                  Jane Smith,2026-02-15T10:00:00Z,,
+                  UserName,CheckIn,CheckOut,CheckOutMethod,Duration(minutes)
+                  John Doe,2026-02-15T09:00:00Z,2026-02-15T17:00:00Z,rfid,480.00
+                  Jane Smith,2026-02-15T10:00:00Z,,,
         "400":
           $ref: "#/components/responses/BadRequest"
         "500":
@@ -1770,6 +1802,11 @@ components:
           nullable: true
           description: Check-out timestamp (null if still active)
           example: "2026-02-15T17:00:00Z"
+        check_out_method:
+          type: string
+          nullable: true
+          description: Sign-out source when the session is completed (rfid, discord, api, auto)
+          example: rfid
         active:
           type: boolean
           description: Whether the session is currently active
@@ -1846,6 +1883,11 @@ components:
           nullable: true
           description: Check-out timestamp (null if still open)
           example: "2026-02-15T17:00:00Z"
+        check_out_method:
+          type: string
+          nullable: true
+          description: Sign-out source when the session is completed (rfid, discord, api, auto)
+          example: rfid
       required:
         - id
         - user_id

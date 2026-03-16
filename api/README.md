@@ -108,6 +108,12 @@ curl -X POST http://localhost:8080/api/users \
 - `POST /api/sessions/checkout/{userId}`
 - `POST /api/sessions/checkout-all`
 
+Session payload note:
+
+- Session objects returned by `GET /api/sessions` and `GET /api/sessions/user/{userId}` include `check_out_method` for completed sessions (`rfid`, `discord`, `api`, `auto`).
+- Session list/count/export and bulk delete endpoints support `check_out_method=rfid|discord|api|auto` (or `all`).
+- CSV exports from `GET /api/sessions/export` include a `CheckOutMethod` column.
+
 ### Statistics
 
 - `GET /api/statistics/leaderboard`

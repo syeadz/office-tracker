@@ -170,6 +170,7 @@ func TestSessionService_ListSessions_AsDTO(t *testing.T) {
 	assert.Len(t, sessions, 1)
 	assert.Equal(t, user.ID, sessions[0].UserID)
 	assert.False(t, sessions[0].Active)
+	assert.Equal(t, repository.CheckOutMethodRFID, sessions[0].CheckOutMethod)
 }
 
 func TestSessionService_ListSessions_ActiveOnly_AsDTO(t *testing.T) {

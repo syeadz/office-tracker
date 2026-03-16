@@ -96,6 +96,7 @@ func TestSessionRepo_FindByID_WithCheckOut(t *testing.T) {
 	assert.NotNil(t, sess)
 	assert.Equal(t, sessionID, sess.ID)
 	assert.NotNil(t, sess.CheckOut)
+	assert.Equal(t, repository.CheckOutMethodRFID, sess.CheckOutMethod)
 }
 
 func TestSessionRepo_CheckOut(t *testing.T) {

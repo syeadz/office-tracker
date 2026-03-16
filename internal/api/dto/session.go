@@ -7,12 +7,13 @@ import "time"
 
 // SessionResponse is the DTO for session API responses
 type SessionResponse struct {
-	ID       int64      `json:"id"`
-	UserID   int64      `json:"user_id"`
-	UserName string     `json:"user_name"`
-	CheckIn  time.Time  `json:"check_in"`
-	CheckOut *time.Time `json:"check_out,omitempty"`
-	Active   bool       `json:"active"`
+	ID             int64      `json:"id"`
+	UserID         int64      `json:"user_id"`
+	UserName       string     `json:"user_name"`
+	CheckIn        time.Time  `json:"check_in"`
+	CheckOut       *time.Time `json:"check_out,omitempty"`
+	CheckOutMethod string     `json:"check_out_method,omitempty"`
+	Active         bool       `json:"active"`
 }
 
 // PresenceResponse is the DTO for active presence API responses

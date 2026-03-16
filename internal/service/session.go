@@ -52,12 +52,13 @@ func (s *SessionService) ListSessions(filter query.SessionFilter, asDTO bool) (i
 	responses := make([]dto.SessionResponse, 0, len(sessions))
 	for _, s := range sessions {
 		responses = append(responses, dto.SessionResponse{
-			ID:       s.ID,
-			UserID:   s.UserID,
-			UserName: s.UserName,
-			CheckIn:  s.CheckIn,
-			CheckOut: s.CheckOut,
-			Active:   s.CheckOut == nil,
+			ID:             s.ID,
+			UserID:         s.UserID,
+			UserName:       s.UserName,
+			CheckIn:        s.CheckIn,
+			CheckOut:       s.CheckOut,
+			CheckOutMethod: s.CheckOutMethod,
+			Active:         s.CheckOut == nil,
 		})
 	}
 	return responses, nil

@@ -196,6 +196,7 @@ X-API-Key: {{apiKey}}
 ###
 
 ### List all sessions (no filters)
+# Note: completed session payloads include check_out_method (rfid|discord|api|auto)
 GET {{baseUrl}}/api/sessions
 X-API-Key: {{apiKey}}
 
@@ -233,6 +234,12 @@ X-API-Key: {{apiKey}}
 
 ### List only completed sessions
 GET {{baseUrl}}/api/sessions?status=completed
+X-API-Key: {{apiKey}}
+
+###
+
+### List completed sessions checked out via Discord only
+GET {{baseUrl}}/api/sessions?status=completed&check_out_method=discord
 X-API-Key: {{apiKey}}
 
 ###
@@ -465,6 +472,7 @@ X-API-Key: {{apiKey}}
 ###
 
 ### Export sessions as CSV (all sessions)
+# Note: CSV columns include CheckOutMethod for completed sessions
 GET {{baseUrl}}/api/sessions/export
 X-API-Key: {{apiKey}}
 
