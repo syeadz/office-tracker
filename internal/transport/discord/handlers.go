@@ -352,15 +352,14 @@ func (b *Bot) handleViewMyStatsButton(s *discordgo.Session, i *discordgo.Interac
 				return
 			}
 
-			// Calculate date range for that week
-			jan1 := time.Date(year, 1, 1, 0, 0, 0, 0, time.Local)
-			weekday := jan1.Weekday()
-			if weekday == time.Sunday {
-				weekday = 7
+			// Calculate date range for that ISO week.
+			// Jan 4 is always in ISO week 1, so use it to find the Monday of week 1.
+			jan4 := time.Date(year, 1, 4, 0, 0, 0, 0, time.Local)
+			weekdayJan4 := int(jan4.Weekday())
+			if weekdayJan4 == 0 {
+				weekdayJan4 = 7 // Sunday = 7
 			}
-			daysToMonday := int((8 - weekday) % 7)
-			firstMonday := jan1.AddDate(0, 0, daysToMonday)
-			start = firstMonday.AddDate(0, 0, (week-1)*7)
+			start = jan4.AddDate(0, 0, (1-weekdayJan4)+(week-1)*7)
 			end = start.AddDate(0, 0, 7).Add(-1 * time.Second)
 			periodLabel = period
 

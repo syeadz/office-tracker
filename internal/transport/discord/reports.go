@@ -79,11 +79,15 @@ func (d *ReportsDelivery) formatReportEmbed(report *domain.PeriodReport, reportT
 	description := fmt.Sprintf("**%s**\n\n", dateRange)
 
 	// Overview section
+	// Use UTC midnight normalization to avoid DST-induced hour drift when computing calendar days.
+	startDay := time.Date(report.StartDate.Year(), report.StartDate.Month(), report.StartDate.Day(), 0, 0, 0, 0, time.UTC)
+	endDay := time.Date(report.EndDate.Year(), report.EndDate.Month(), report.EndDate.Day(), 0, 0, 0, 0, time.UTC)
+	periodDays := int(endDay.Sub(startDay).Hours()/24) + 1
 	overview := []string{
 		fmt.Sprintf("⏱️ **Total Hours:** %.1f hrs", report.TotalHours),
 		fmt.Sprintf("👥 **Unique Users:** %d", report.UniqueUsers),
 		fmt.Sprintf("🚪 **Total Visits:** %d", report.TotalVisits),
-		fmt.Sprintf("📅 **Active Days:** %d/7", report.ActiveDays),
+		fmt.Sprintf("📅 **Active Days:** %d/%d", report.ActiveDays, periodDays),
 		fmt.Sprintf("🔥 **Busiest Day:** %s", formatReportBusiestDay(report.BusiestDay, report.BusiestDayUsers)),
 		fmt.Sprintf("🏢 **Peak Occupancy:** %d users", report.PeakOccupancy),
 	}
