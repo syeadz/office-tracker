@@ -57,7 +57,7 @@ func (b *Bot) handleMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 		return
 	}
 
-	result, err := b.services.Session.ListSessions(query.SessionFilter{ActiveOnly: true}, false)
+	result, err := b.services.Session.ListSessions(query.SessionFilter{ActiveOnly: true, OrderBy: "asc", SortBy: "check_in"}, false)
 	if err != nil {
 		log.Error("failed to fetch active sessions for presence query", "err", err)
 		return

@@ -176,7 +176,7 @@ func (ac *AttendanceCommands) handleCheckout(s *discordgo.Session, i *discordgo.
 // handleCheckoutAll checks out all currently active sessions
 func (ac *AttendanceCommands) handleCheckoutAll(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	// Get all active sessions
-	filter := query.SessionFilter{ActiveOnly: true}
+	filter := query.SessionFilter{ActiveOnly: true, OrderBy: "asc", SortBy: "check_in"}
 	result, err := ac.sessionSvc.ListSessions(filter, false)
 	if err != nil {
 		attendanceLog.Error("failed to get active sessions", "error", err)

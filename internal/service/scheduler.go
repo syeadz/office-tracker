@@ -106,7 +106,7 @@ func (s *SchedulerService) AutoCheckoutJob() {
 	slog.Info("running auto-checkout job")
 
 	// Get all open sessions
-	filter := query.SessionFilter{ActiveOnly: true}
+	filter := query.SessionFilter{ActiveOnly: true, OrderBy: "asc", SortBy: "check_in"}
 
 	sessions, err := s.sessions.List(filter)
 	if err != nil {

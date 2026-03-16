@@ -116,7 +116,7 @@ func (b *Bot) renderAllDashboards() {
 // renderDashboard updates a specific dashboard with current data
 func (b *Bot) renderDashboard(channelID string) {
 	// Fetch active sessions
-	result, err := b.services.Session.ListSessions(query.SessionFilter{ActiveOnly: true}, false)
+	result, err := b.services.Session.ListSessions(query.SessionFilter{ActiveOnly: true, OrderBy: "asc", SortBy: "check_in"}, false)
 	if err != nil {
 		log.Error("failed to fetch active sessions", "channel_id", channelID, "error", err)
 		return

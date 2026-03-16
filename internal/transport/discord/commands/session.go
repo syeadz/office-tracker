@@ -162,6 +162,15 @@ func (sc *SessionCommands) handleList(s *discordgo.Session, i *discordgo.Interac
 		}
 	}
 
+	if filter.ActiveOnly {
+		if filter.OrderBy == "" {
+			filter.OrderBy = "asc"
+		}
+		if filter.SortBy == "" {
+			filter.SortBy = "check_in"
+		}
+	}
+
 	filter.Limit = int(limit)
 	filter.Offset = int((page - 1) * limit)
 
@@ -293,6 +302,8 @@ func (sc *SessionCommands) handleGet(s *discordgo.Session, i *discordgo.Interact
 func (sc *SessionCommands) handleActive(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	filter := query.SessionFilter{
 		ActiveOnly: true,
+		OrderBy:    "asc",
+		SortBy:     "check_in",
 		Limit:      50, // Get a good chunk of active sessions
 	}
 

@@ -226,7 +226,7 @@ func (h *SessionHandler) GetOpenSessions(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	filter := query.SessionFilter{ActiveOnly: true}
+	filter := query.SessionFilter{ActiveOnly: true, OrderBy: "asc", SortBy: "check_in"}
 	result, err := h.sessionSvc.ListSessions(filter, false)
 	if err != nil {
 		log.Error("failed to get open sessions", "err", err)
@@ -333,7 +333,7 @@ func (h *SessionHandler) GetPresence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filter := query.SessionFilter{ActiveOnly: true}
+	filter := query.SessionFilter{ActiveOnly: true, OrderBy: "asc", SortBy: "check_in"}
 	result, err := h.sessionSvc.ListSessions(filter, false)
 	if err != nil {
 		log.Error("failed to get active sessions", "err", err)
@@ -613,7 +613,7 @@ func (h *SessionHandler) CheckoutAll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get all active sessions
-	filter := query.SessionFilter{ActiveOnly: true}
+	filter := query.SessionFilter{ActiveOnly: true, OrderBy: "asc", SortBy: "check_in"}
 	result, err := h.sessionSvc.ListSessions(filter, false)
 	if err != nil {
 		log.Error("failed to get active sessions", "err", err)
