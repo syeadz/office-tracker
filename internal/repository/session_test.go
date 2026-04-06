@@ -437,6 +437,25 @@ func TestSessionRepo_GetAllUserStats_OrderByVisits(t *testing.T) {
 	assert.Equal(t, int64(5), stats[0].VisitCount)
 }
 
+func TestSessionRepo_GetAllUserStats_ExcludesUsersWithNoVisits(t *testing.T) {
+	sessionRepo, db := helpers.CreateSessionRepoForTest(t)
+	defer db.Close()
+
+	userRepo := &repository.UserRepo{DB: db}
+	activeUser, _ := userRepo.Create("ActiveUser", "RFID910", "discord_active")
+	_, _ = userRepo.Create("NoVisitsUser", "RFID911", "discord_novisits")
+
+	now := time.Now()
+	sessionID := helpers.SeedSession(t, db, activeUser.ID)
+	sessionRepo.CheckOut(sessionID)
+
+	stats, err := sessionRepo.GetAllUserStats(now.Add(-1*time.Hour), now.Add(1*time.Hour), "visits", 10, false)
+	assert.NoError(t, err)
+	assert.Len(t, stats, 1)
+	assert.Equal(t, activeUser.ID, stats[0].UserID)
+	assert.Greater(t, stats[0].VisitCount, int64(0))
+}
+
 func TestSessionRepo_GetPeriodStats(t *testing.T) {
 	sessionRepo, db := helpers.CreateSessionRepoForTest(t)
 	defer db.Close()

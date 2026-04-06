@@ -481,6 +481,7 @@ func (r *SessionRepo) GetAllUserStats(from, to time.Time, orderBy string, limit 
 		FROM users u
 		LEFT JOIN sessions s ON u.id = s.user_id AND s.check_in >= ? AND s.check_in <= ? AND s.check_out IS NOT NULL ` + checkOutFilter + `
 		GROUP BY u.id
+		HAVING COUNT(s.id) > 0
 		ORDER BY ` + orderBySQL
 
 	if limit > 0 {
