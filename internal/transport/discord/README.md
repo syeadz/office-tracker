@@ -50,6 +50,7 @@ Notes:
 
 - `stats` — office statistics (weekly, monthly, or custom date range). Defaults to RFID-only checkout sessions; use `include_auto_checkout` to include non-RFID checkouts (auto/Discord/API).
 - `mystats` — your personal statistics (weekly, monthly, or custom date range). Uses the same `include_auto_checkout` behavior.
+- `reports` — check or update scheduled reports runtime settings. Use optional booleans `weekly` and `monthly`.
 
 ### Attendance Commands (Admin)
 
@@ -80,6 +81,14 @@ DISCORD_REPORTS_CHANNEL_ID=<your-channel-id>
 - Week-over-week trend analysis with percentage changes
 - Top 10 contributor leaderboard with medals
 - Only sends if there was at least one visit that week
+
+**Runtime control:**
+
+- `/reports` shows availability plus weekly/monthly enabled flags.
+- `/reports weekly:true` enables weekly schedule only.
+- `/reports monthly:false` disables monthly schedule only.
+- `/reports weekly:true monthly:false` updates both schedules in one command.
+- If reports are fully disabled at startup (missing guild/channel configuration), the command reports unavailable and does not allow toggling.
 
 ## Natural Language Presence Queries
 

@@ -26,7 +26,9 @@ func TestNewReportsService(t *testing.T) {
 	svc := NewReportsService(nil, mockDelivery, true)
 
 	assert.NotNil(t, svc)
-	assert.True(t, svc.enabled)
+	assert.True(t, svc.IsAvailable())
+	assert.True(t, svc.IsWeeklyEnabled())
+	assert.True(t, svc.IsMonthlyEnabled())
 	assert.Equal(t, mockDelivery, svc.delivery)
 }
 
@@ -60,7 +62,7 @@ func TestReportsService_GenerateAndSendWeeklyReport_DeliveryError(t *testing.T) 
 }
 
 func TestReportsService_SetEnabled(t *testing.T) {
-	svc := NewReportsService(nil, nil, true)
+	svc := NewReportsService(nil, new(MockReportDelivery), true)
 
 	assert.True(t, svc.IsEnabled())
 
@@ -69,6 +71,40 @@ func TestReportsService_SetEnabled(t *testing.T) {
 
 	svc.SetEnabled(true)
 	assert.True(t, svc.IsEnabled())
+}
+
+func TestReportsService_SetPeriodEnabled(t *testing.T) {
+	svc := NewReportsService(nil, new(MockReportDelivery), true)
+
+	assert.True(t, svc.IsWeeklyEnabled())
+	assert.True(t, svc.IsMonthlyEnabled())
+
+	svc.SetWeeklyEnabled(false)
+	assert.False(t, svc.IsWeeklyEnabled())
+	assert.True(t, svc.IsMonthlyEnabled())
+	assert.True(t, svc.IsEnabled())
+
+	svc.SetMonthlyEnabled(false)
+	assert.False(t, svc.IsWeeklyEnabled())
+	assert.False(t, svc.IsMonthlyEnabled())
+	assert.False(t, svc.IsEnabled())
+}
+
+func TestReportsService_UnavailableCannotEnable(t *testing.T) {
+	svc := NewReportsService(nil, nil, true)
+
+	assert.False(t, svc.IsAvailable())
+	assert.False(t, svc.IsEnabled())
+	assert.False(t, svc.IsWeeklyEnabled())
+	assert.False(t, svc.IsMonthlyEnabled())
+
+	svc.SetEnabled(true)
+	svc.SetWeeklyEnabled(true)
+	svc.SetMonthlyEnabled(true)
+
+	assert.False(t, svc.IsEnabled())
+	assert.False(t, svc.IsWeeklyEnabled())
+	assert.False(t, svc.IsMonthlyEnabled())
 }
 
 func TestReportsService_DeliveryErrorHandling(t *testing.T) {

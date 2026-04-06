@@ -180,6 +180,7 @@ Try these in your Discord server:
 /checkout @member       - Check out a member
 /checkout-all           - Check out all active members (admin)
 /scan-history [limit]   - View recent RFID scan events (admin)
+/reports [weekly:true|false] [monthly:true|false] - Manage scheduled reports (admin)
 /mystats                - View your weekly stats
 /stats                  - View server leaderboard
 /session-list [user]    - List sessions, optionally filtered by @user
@@ -187,7 +188,7 @@ Try these in your Discord server:
 
 ### Command Permissions
 
-Some commands are admin-only by default (`/setup`, `/checkin`, `/checkout-all`, `/scan-history`, `/reports-toggle`, `/user-create`, `/user-update`, `/user-delete`).
+Some commands are admin-only by default (`/setup`, `/checkin`, `/checkout-all`, `/scan-history`, `/reports`, `/user-create`, `/user-update`, `/user-delete`).
 
 For all other commands, you can further customize permissions:
 
@@ -245,6 +246,16 @@ Sent on the 1st of each month at 9 AM:
 **To disable reports:** Leave `DISCORD_REPORTS_CHANNEL_ID` empty
 
 **Note:** Reports are only sent if there was activity during the period (no empty reports).
+
+**Runtime toggles (without restart):**
+
+- `/reports` — view availability + weekly/monthly enabled state
+- `/reports weekly:true` — enable weekly schedule only
+- `/reports monthly:false` — disable monthly schedule only
+- `/reports weekly:true monthly:true` — enable both schedules
+- `/reports weekly:false monthly:false` — disable both schedules
+
+If startup configuration is missing (no reports guild/channel), runtime toggle is unavailable and command will report that reports are fully disabled.
 
 ### Custom Schedule
 

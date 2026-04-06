@@ -201,9 +201,14 @@ Auth note:
 
 ### Reports
 
-- `GET /api/reports/weekly` (available when reports service is enabled)
-- `GET /api/reports/status` (check if reports are enabled)
-- `POST /api/reports/toggle?enabled=true|false` (enable/disable reports at runtime)
+- `GET /api/reports/weekly` (returns `503` if reports are unavailable at startup)
+- `GET /api/reports/status` (returns availability + overall + weekly/monthly enabled flags)
+- `POST /api/reports/toggle?enabled=true|false&period=all|weekly|monthly` (runtime schedule toggle)
+
+Notes:
+
+- If startup configuration is missing (e.g., reports guild/channel not configured), status returns `fully_disabled=true` and toggle is unavailable.
+- If `period` is omitted in toggle requests, it defaults to `all`.
 
 ### RFID attendance
 

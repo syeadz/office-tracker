@@ -1541,6 +1541,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WeeklyReport"
+        "503":
+          description: Reports unavailable (startup configuration missing)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "404":
           description: No report available yet
           content:
@@ -1558,7 +1564,7 @@ paths:
         - BearerAuth: []
         - {}
       summary: Get reports status
-      description: Check whether scheduled weekly and monthly reports are enabled or disabled
+      description: Check whether scheduled reports are available and whether weekly/monthly schedules are enabled
       tags:
         - Reports
       responses:
@@ -1569,15 +1575,34 @@ paths:
               schema:
                 type: object
                 properties:
+                  available:
+                    type: boolean
+                    description: Whether reports delivery is configured and can be toggled
+                    example: true
+                  fully_disabled:
+                    type: boolean
+                    description: True when reports are unavailable due to missing startup guild/channel configuration
+                    example: false
                   enabled:
                     type: boolean
-                    description: Whether reports are enabled
+                    description: Whether any schedule is enabled
                     example: true
+                  weekly_enabled:
+                    type: boolean
+                    description: Whether weekly scheduled reports are enabled
+                    example: true
+                  monthly_enabled:
+                    type: boolean
+                    description: Whether monthly scheduled reports are enabled
+                    example: false
                   status:
                     type: string
                     description: Human-readable status
                     enum: [enabled, disabled]
                     example: enabled
+                  message:
+                    type: string
+                    example: Reports are configurable
         "500":
           $ref: "#/components/responses/InternalServerError"
 
@@ -1587,8 +1612,8 @@ paths:
         - ApiKeyAuth: []
         - BearerAuth: []
         - {}
-      summary: Toggle reports on/off
-      description: Enable or disable scheduled weekly and monthly reports at runtime. Requires administrator privileges.
+      summary: Toggle scheduled reports
+      description: Enable or disable scheduled reports at runtime, optionally scoped to weekly or monthly schedule. Requires administrator privileges.
       tags:
         - Reports
       parameters:
@@ -1600,6 +1625,14 @@ paths:
             type: string
             enum: [true, false]
             example: true
+        - name: period
+          in: query
+          required: false
+          description: Target schedule to modify (defaults to all)
+          schema:
+            type: string
+            enum: [all, weekly, monthly]
+            example: weekly
       responses:
         "200":
           description: Reports toggled successfully
@@ -1611,13 +1644,31 @@ paths:
                   success:
                     type: boolean
                     example: true
+                  period:
+                    type: string
+                    enum: [all, weekly, monthly]
+                    example: weekly
+                  period_status:
+                    type: string
+                    enum: [enabled, disabled]
+                    example: enabled
+                  enabled:
+                    type: boolean
+                    description: Whether any schedule is enabled
+                    example: true
+                  weekly_enabled:
+                    type: boolean
+                    example: true
+                  monthly_enabled:
+                    type: boolean
+                    example: false
                   status:
                     type: string
                     enum: [enabled, disabled]
                     example: enabled
                   message:
                     type: string
-                    example: Reports enabled successfully
+                    example: Reports weekly setting updated successfully
         "400":
           description: Invalid or missing 'enabled' parameter
           content:
@@ -1625,6 +1676,12 @@ paths:
               schema:
                 type: string
                 example: "invalid 'enabled' value, must be 'true' or 'false'"
+        "503":
+          description: Reports unavailable (startup configuration missing)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "405":
           description: Method not allowed (only POST is supported)
           content:

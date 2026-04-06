@@ -616,10 +616,34 @@ X-API-Key: {{apiKey}}
 
 ###
 
-### ===== REPORTS ENDPOINTS (if enabled) =====
+### ===== REPORTS ENDPOINTS =====
 
 ### Get weekly report (alternative endpoint)
 GET {{baseUrl}}/api/reports/weekly
+X-API-Key: {{apiKey}}
+
+###
+
+### Get reports availability + schedule status
+GET {{baseUrl}}/api/reports/status
+X-API-Key: {{apiKey}}
+
+###
+
+### Enable all scheduled reports
+POST {{baseUrl}}/api/reports/toggle?enabled=true&period=all
+X-API-Key: {{apiKey}}
+
+###
+
+### Disable weekly scheduled reports only
+POST {{baseUrl}}/api/reports/toggle?enabled=false&period=weekly
+X-API-Key: {{apiKey}}
+
+###
+
+### Enable monthly scheduled reports only
+POST {{baseUrl}}/api/reports/toggle?enabled=true&period=monthly
 X-API-Key: {{apiKey}}
 
 ###

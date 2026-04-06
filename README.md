@@ -77,6 +77,9 @@ CORS_ORIGINS=http://localhost:3000
 /checkout @member            # Check out someone
 /mystats                      # View your weekly stats
 /stats                        # View office leaderboard
+/reports                     # View reports availability + status (admin)
+/reports weekly:false        # Disable weekly reports only (admin)
+/reports monthly:true        # Enable monthly reports only (admin)
 /help                         # Show available commands
 ```
 
@@ -100,6 +103,18 @@ curl -X POST http://localhost:8080/api/sessions/checkin \
 
 ```bash
 curl http://localhost:8080/api/reports/weekly
+```
+
+**Check reports status:**
+
+```bash
+curl http://localhost:8080/api/reports/status
+```
+
+**Enable monthly reports only:**
+
+```bash
+curl -X POST "http://localhost:8080/api/reports/toggle?enabled=true&period=monthly"
 ```
 
 **Publish environmental reading (in-memory):**

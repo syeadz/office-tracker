@@ -25,21 +25,27 @@ func (c *ReportsToggleCommand) Definition() *discordgo.ApplicationCommand {
 	adminPerm := int64(discordgo.PermissionAdministrator)
 
 	return &discordgo.ApplicationCommand{
-		Name:                     "reports-toggle",
-		Description:              "Enable or disable scheduled weekly and monthly reports (Admin only)",
+		Name:                     "reports",
+		Description:              "Check or update weekly/monthly scheduled reports (Admin only)",
 		DefaultMemberPermissions: &adminPerm,
 		Options: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionBoolean,
-				Name:        "enabled",
-				Description: "Enable (true) or disable (false) scheduled reports",
-				Required:    true,
+				Name:        "weekly",
+				Description: "Set weekly reports enabled (true) or disabled (false)",
+				Required:    false,
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionBoolean,
+				Name:        "monthly",
+				Description: "Set monthly reports enabled (true) or disabled (false)",
+				Required:    false,
 			},
 		},
 	}
 }
 
-// Handle processes the reports-toggle command
+// Handle processes the reports command
 func (c *ReportsToggleCommand) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	// Check if user has administrator permission
 	if !hasAdminPermission(i.Member) {
@@ -53,32 +59,98 @@ func (c *ReportsToggleCommand) Handle(s *discordgo.Session, i *discordgo.Interac
 		return
 	}
 
-	// Parse the enabled option
-	enabled := false
+	if c.reports == nil {
+		respondEphemeral(s, i, "❌ Reports service is not configured.")
+		return
+	}
+
+	weeklyProvided := false
+	weeklyRequested := false
+	monthlyProvided := false
+	monthlyRequested := false
+
 	for _, opt := range i.ApplicationCommandData().Options {
-		if opt.Name == "enabled" {
-			enabled = opt.BoolValue()
-			break
+		switch opt.Name {
+		case "weekly":
+			weeklyProvided = true
+			weeklyRequested = opt.BoolValue()
+		case "monthly":
+			monthlyProvided = true
+			monthlyRequested = opt.BoolValue()
 		}
 	}
 
-	c.reports.SetEnabled(enabled)
+	statusOnly := !weeklyProvided && !monthlyProvided
 
-	status := "disabled"
-	emoji := "🔴"
-	if enabled {
-		status = "enabled"
-		emoji = "✅"
+	if !statusOnly {
+		if !c.reports.IsAvailable() {
+			respondEphemeral(s, i, "❌ Reports are fully disabled (missing startup guild/channel configuration), cannot toggle.")
+			return
+		}
+
+		if weeklyProvided {
+			c.reports.SetWeeklyEnabled(weeklyRequested)
+		}
+		if monthlyProvided {
+			c.reports.SetMonthlyEnabled(monthlyRequested)
+		}
+	}
+
+	available := c.reports.IsAvailable()
+	weeklyEnabled := c.reports.IsWeeklyEnabled()
+	monthlyEnabled := c.reports.IsMonthlyEnabled()
+	overallEnabled := c.reports.IsEnabled()
+
+	title := "ℹ️ Reports Status"
+	description := "Current scheduled reports configuration."
+	requested := "status-only"
+	if weeklyProvided || monthlyProvided {
+		requested = ""
+		if weeklyProvided {
+			requested = requested + fmt.Sprintf("weekly=%s", statusLabel(weeklyRequested))
+		}
+		if monthlyProvided {
+			if requested != "" {
+				requested = requested + ", "
+			}
+			requested = requested + fmt.Sprintf("monthly=%s", statusLabel(monthlyRequested))
+		}
+		title = "✅ Reports Settings Updated"
+		description = "Applied requested weekly/monthly settings."
+	}
+	if !available {
+		title = "⚠️ Reports Unavailable"
+		description = "Reports are fully disabled (missing startup guild/channel configuration)."
 	}
 
 	embed := &discordgo.MessageEmbed{
-		Title:       fmt.Sprintf("%s Reports %s", emoji, status),
-		Description: fmt.Sprintf("Scheduled weekly and monthly reports have been **%s**", status),
-		Color:       getColorForStatus(enabled),
+		Title:       title,
+		Description: description,
+		Color:       getColorForStatus(available, overallEnabled),
 		Fields: []*discordgo.MessageEmbedField{
 			{
-				Name:   "Status",
-				Value:  status,
+				Name:   "Availability",
+				Value:  statusLabel(available),
+				Inline: true,
+			},
+			{
+				Name:   "Overall",
+				Value:  statusLabel(overallEnabled),
+				Inline: true,
+			},
+			{
+				Name:   "Weekly",
+				Value:  statusLabel(weeklyEnabled),
+				Inline: true,
+			},
+			{
+				Name:   "Monthly",
+				Value:  statusLabel(monthlyEnabled),
+				Inline: true,
+			},
+			{
+				Name:   "Requested",
+				Value:  requested,
 				Inline: true,
 			},
 		},
@@ -106,9 +178,19 @@ func hasAdminPermission(member *discordgo.Member) bool {
 }
 
 // getColorForStatus returns appropriate color for embed based on status
-func getColorForStatus(enabled bool) int {
-	if enabled {
-		return 0x00ff00 // Green
+func getColorForStatus(available bool, enabled bool) int {
+	if !available {
+		return 0xf1c40f
 	}
-	return 0xff0000 // Red
+	if enabled {
+		return 0x00ff00
+	}
+	return 0xff0000
+}
+
+func statusLabel(enabled bool) string {
+	if enabled {
+		return "enabled"
+	}
+	return "disabled"
 }

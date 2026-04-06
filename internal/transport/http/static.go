@@ -531,6 +531,21 @@ func getManagementUI() string {
             <div id="reportsMessage"></div>
 
             <div class="section-header" style="margin-bottom: 10px;">
+                <h3 style="margin: 0;">Scheduled Reports</h3>
+                <div id="scheduledReportsStatus" class="muted">Status: checking…</div>
+            </div>
+            <div class="inline-controls" style="margin-bottom: 20px;">
+                <label class="checkbox">
+                    <input type="checkbox" id="weeklyReportsToggle" onchange="toggleScheduledReport('weekly')" />
+                    Weekly reports enabled
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" id="monthlyReportsToggle" onchange="toggleScheduledReport('monthly')" />
+                    Monthly reports enabled
+                </label>
+            </div>
+
+            <div class="section-header" style="margin-bottom: 10px;">
                 <h3 style="margin: 0;">Office Statistics</h3>
                 <div id="reportPeriodLabel" class="muted">Period: —</div>
             </div>
@@ -1708,10 +1723,94 @@ func getManagementUI() string {
         }
 
         function loadReports() {
+            loadReportsStatus();
             loadWeeklyReport();
             loadLeaderboard();
             loadMemberStatsUsers();
             updateRangeInputs();
+        }
+
+        function setScheduledReportsControlsDisabled(disabled) {
+            var weeklyToggle = document.getElementById('weeklyReportsToggle');
+            var monthlyToggle = document.getElementById('monthlyReportsToggle');
+
+            if (weeklyToggle) weeklyToggle.disabled = disabled;
+            if (monthlyToggle) monthlyToggle.disabled = disabled;
+        }
+
+        function renderReportsStatus(statusData) {
+            var statusLabel = document.getElementById('scheduledReportsStatus');
+            var weeklyToggle = document.getElementById('weeklyReportsToggle');
+            var monthlyToggle = document.getElementById('monthlyReportsToggle');
+
+            if (!statusLabel || !weeklyToggle || !monthlyToggle) return;
+
+            var available = !!statusData.available;
+            var weeklyEnabled = !!statusData.weekly_enabled;
+            var monthlyEnabled = !!statusData.monthly_enabled;
+            var overallEnabled = !!statusData.enabled;
+
+            weeklyToggle.checked = weeklyEnabled;
+            monthlyToggle.checked = monthlyEnabled;
+
+            if (!available) {
+                setScheduledReportsControlsDisabled(true);
+                statusLabel.textContent = 'Status: fully disabled (missing startup guild/channel configuration) — cannot toggle';
+                return;
+            }
+
+            setScheduledReportsControlsDisabled(false);
+            statusLabel.textContent = 'Status: ' + (overallEnabled ? 'enabled' : 'disabled') + ' (weekly: ' + (weeklyEnabled ? 'on' : 'off') + ', monthly: ' + (monthlyEnabled ? 'on' : 'off') + ')';
+        }
+
+        function loadReportsStatus() {
+            fetch(API_BASE + '/api/reports/status', { headers: getHeaders() })
+                .then(function(response) {
+                    if (!response.ok) {
+                        return response.text().then(function(errorText) {
+                            throw new Error(errorText || 'Failed to load reports status');
+                        });
+                    }
+                    return response.json();
+                })
+                .then(function(statusData) {
+                    renderReportsStatus(statusData || {});
+                })
+                .catch(function(error) {
+                    setScheduledReportsControlsDisabled(true);
+                    var statusLabel = document.getElementById('scheduledReportsStatus');
+                    if (statusLabel) {
+                        statusLabel.textContent = 'Status: unavailable — cannot toggle';
+                    }
+                    showMessage('reportsMessage', 'Error loading reports status: ' + error.message, 'error');
+                });
+        }
+
+        function toggleScheduledReport(period) {
+            var toggleId = period === 'monthly' ? 'monthlyReportsToggle' : 'weeklyReportsToggle';
+            var toggle = document.getElementById(toggleId);
+            if (!toggle) return;
+
+            var enabled = !!toggle.checked;
+            var url = API_BASE + '/api/reports/toggle?period=' + encodeURIComponent(period) + '&enabled=' + (enabled ? 'true' : 'false');
+
+            fetch(url, {
+                method: 'POST',
+                headers: getHeaders()
+            }).then(function(response) {
+                if (!response.ok) {
+                    return response.text().then(function(errorText) {
+                        throw new Error(errorText || 'Failed to update scheduled reports setting');
+                    });
+                }
+                return response.json();
+            }).then(function(result) {
+                showMessage('reportsMessage', result.message || 'Scheduled reports setting updated', 'success');
+                loadReportsStatus();
+            }).catch(function(error) {
+                showMessage('reportsMessage', 'Error updating reports setting: ' + error.message, 'error');
+                loadReportsStatus();
+            });
         }
 
         function resetReportFilters() {

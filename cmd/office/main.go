@@ -47,6 +47,11 @@ func main() {
 	// Initialize application with all dependencies
 	application := app.New(db, cfg.HTTPPort, mwConfig)
 
+	// Reports service defaults to unavailable unless Discord delivery is configured.
+	reportsService := service.NewReportsService(application.Services.Stats, nil, false)
+	application.Services.Reports = reportsService
+	application.Services.Scheduler.SetReportsService(reportsService)
+
 	// Discord bot
 	bot, err := discord.New(cfg.DiscordToken, application.Services, cfg.DiscordExecGuildID, cfg.DiscordCommunityGuildID)
 	if err != nil {
@@ -55,7 +60,6 @@ func main() {
 	}
 
 	// Configure reports if enabled
-	var reportsService *service.ReportsService
 	if bot != nil && cfg.ReportsEnabled {
 		reportsDelivery := discord.NewReportsDelivery(bot.Session(), cfg.DiscordReportsChannelID)
 		reportsService = service.NewReportsService(application.Services.Stats, reportsDelivery, true)

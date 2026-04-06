@@ -19,23 +19,35 @@ type ReportDelivery interface {
 type ReportsService struct {
 	stats               *OfficeStatsService
 	delivery            ReportDelivery
-	enabled             bool
+	available           bool
+	weeklyEnabled       bool
+	monthlyEnabled      bool
 	latestWeeklyReport  *domain.PeriodReport
 	latestMonthlyReport *domain.PeriodReport
 }
 
 // NewReportsService creates a new reports service
 func NewReportsService(stats *OfficeStatsService, delivery ReportDelivery, enabled bool) *ReportsService {
+	available := delivery != nil
+	periodsEnabled := enabled && available
+
 	return &ReportsService{
-		stats:    stats,
-		delivery: delivery,
-		enabled:  enabled,
+		stats:          stats,
+		delivery:       delivery,
+		available:      available,
+		weeklyEnabled:  periodsEnabled,
+		monthlyEnabled: periodsEnabled,
 	}
 }
 
 // GenerateAndSendWeeklyReport generates and sends the weekly office report
 func (r *ReportsService) GenerateAndSendWeeklyReport() error {
-	if !r.enabled {
+	if !r.available {
+		reportsLog.Info("reports unavailable, skipping weekly report")
+		return nil
+	}
+
+	if !r.weeklyEnabled {
 		reportsLog.Info("reports disabled, skipping weekly report")
 		return nil
 	}
@@ -81,7 +93,12 @@ func (r *ReportsService) GenerateAndSendWeeklyReport() error {
 
 // GenerateAndSendMonthlyReport generates and sends the monthly office report
 func (r *ReportsService) GenerateAndSendMonthlyReport() error {
-	if !r.enabled {
+	if !r.available {
+		reportsLog.Info("reports unavailable, skipping monthly report")
+		return nil
+	}
+
+	if !r.monthlyEnabled {
 		reportsLog.Info("reports disabled, skipping monthly report")
 		return nil
 	}
@@ -247,13 +264,56 @@ func (r *ReportsService) generateMonthlyReport() (*domain.PeriodReport, error) {
 
 // SetEnabled enables or disables report generation
 func (r *ReportsService) SetEnabled(enabled bool) {
-	r.enabled = enabled
+	if !r.available {
+		reportsLog.Warn("cannot change reports enabled status: reports unavailable")
+		return
+	}
+
+	r.weeklyEnabled = enabled
+	r.monthlyEnabled = enabled
 	reportsLog.Info("reports enabled status changed", "enabled", enabled)
+}
+
+// SetWeeklyEnabled enables or disables weekly report generation.
+func (r *ReportsService) SetWeeklyEnabled(enabled bool) {
+	if !r.available {
+		reportsLog.Warn("cannot change weekly reports enabled status: reports unavailable")
+		return
+	}
+
+	r.weeklyEnabled = enabled
+	reportsLog.Info("weekly reports enabled status changed", "enabled", enabled)
+}
+
+// SetMonthlyEnabled enables or disables monthly report generation.
+func (r *ReportsService) SetMonthlyEnabled(enabled bool) {
+	if !r.available {
+		reportsLog.Warn("cannot change monthly reports enabled status: reports unavailable")
+		return
+	}
+
+	r.monthlyEnabled = enabled
+	reportsLog.Info("monthly reports enabled status changed", "enabled", enabled)
 }
 
 // IsEnabled returns whether reports are currently enabled
 func (r *ReportsService) IsEnabled() bool {
-	return r.enabled
+	return r.available && (r.weeklyEnabled || r.monthlyEnabled)
+}
+
+// IsWeeklyEnabled returns whether weekly reports are enabled.
+func (r *ReportsService) IsWeeklyEnabled() bool {
+	return r.available && r.weeklyEnabled
+}
+
+// IsMonthlyEnabled returns whether monthly reports are enabled.
+func (r *ReportsService) IsMonthlyEnabled() bool {
+	return r.available && r.monthlyEnabled
+}
+
+// IsAvailable returns whether reports delivery is configured.
+func (r *ReportsService) IsAvailable() bool {
+	return r.available
 }
 
 // GetLatestWeeklyReport returns the most recently generated weekly report

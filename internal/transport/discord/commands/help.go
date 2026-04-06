@@ -74,7 +74,7 @@ func (hc *HelpCommands) handleHelp(s *discordgo.Session, i *discordgo.Interactio
 			},
 			{
 				Name:   "📈 Reports Commands",
-				Value:  "`/reports-toggle <enabled>`\nEnable or disable scheduled weekly and monthly reports (admin only)",
+				Value:  "`/reports [weekly] [monthly]`\nView or update scheduled weekly/monthly reports (admin only)",
 				Inline: false,
 			},
 			{

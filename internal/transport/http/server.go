@@ -156,13 +156,11 @@ func New(port string, attSvc *service.AttendanceService, userSvc *service.UserSe
 		}
 	})
 
-	// Reports endpoints (optional)
-	if reportsSvc != nil {
-		reportsHandler := NewReportsHandlers(reportsSvc)
-		mux.HandleFunc("/api/reports/weekly", reportsHandler.HandleGetWeeklyReport)
-		mux.HandleFunc("/api/reports/status", reportsHandler.HandleGetReportsStatus)
-		mux.HandleFunc("/api/reports/toggle", reportsHandler.HandleToggleReports)
-	}
+	// Reports endpoints
+	reportsHandler := NewReportsHandlers(reportsSvc)
+	mux.HandleFunc("/api/reports/weekly", reportsHandler.HandleGetWeeklyReport)
+	mux.HandleFunc("/api/reports/status", reportsHandler.HandleGetReportsStatus)
+	mux.HandleFunc("/api/reports/toggle", reportsHandler.HandleToggleReports)
 
 	// Build middleware chain
 	var middlewares []func(http.Handler) http.Handler
