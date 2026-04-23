@@ -1,4 +1,4 @@
-# Office Tracker
+# Office Tracker [![CI](https://github.com/syeadz/office-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/syeadz/office-tracker/actions/workflows/ci.yml)
 
 A Go service for tracking office attendance with RFID scans,
 plus Discord automation and a lightweight admin UI.
