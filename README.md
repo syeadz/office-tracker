@@ -31,13 +31,13 @@ or <http://localhost:8080/ui>
 
 ### Core Features
 
-- ✅ RFID scan integration
-- ✅ Discord /checkin, /checkout, /mystats slash commands
-- ✅ Weekly and monthly activity reports (Discord embeds)
-- ✅ HTTP API for automation
-- ✅ Web UI for management
-- ✅ Leaderboards and user statistics
-- ✅ Session history and filtering
+- RFID scan integration
+- Discord /checkin, /checkout, /mystats slash commands
+- Weekly and monthly activity reports (Discord embeds)
+- HTTP API for automation
+- Web UI for management
+- Leaderboards and user statistics
+- Session history and filtering
 
 ### Channels
 
