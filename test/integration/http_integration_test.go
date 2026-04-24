@@ -14,11 +14,18 @@ import (
 	"testing"
 
 	"office/internal/app"
+	"office/internal/domain"
 	"office/internal/repository"
 	"office/internal/service"
 	httptransport "office/internal/transport/http"
 	"office/test/helpers"
 )
+
+type integrationReportDelivery struct{}
+
+func (d *integrationReportDelivery) SendPeriodReport(_ *domain.PeriodReport, _ string) error {
+	return nil
+}
 
 func startIntegrationServer(t *testing.T, mw httptransport.MiddlewareConfig) (*httptest.Server, func()) {
 	t.Helper()
@@ -47,7 +54,7 @@ func startIntegrationServerWithReports(t *testing.T, mw httptransport.Middleware
 	userSvc := &service.UserService{Users: userRepo}
 	sessionSvc := &service.SessionService{Sessions: sessionRepo}
 	statsSvc := &service.OfficeStatsService{Sessions: sessionRepo}
-	reportsSvc := service.NewReportsService(statsSvc, nil, reportsEnabled)
+	reportsSvc := service.NewReportsService(statsSvc, &integrationReportDelivery{}, reportsEnabled)
 
 	httpServer := httptransport.New("0", attendanceSvc, userSvc, sessionSvc, statsSvc, service.NewEnvironmentService(service.DefaultEnvironmentMaxAge), reportsSvc, mw)
 	server := httptest.NewServer(httpServer.Handler())
@@ -207,7 +214,7 @@ func TestIntegration_UserSessionLifecycleAndLeaderboard(t *testing.T) {
 		t.Fatalf("expected 0 active sessions after checkout, got %d", len(openAfterCheckout))
 	}
 
-	leaderboardResp := doJSONRequest(t, client, http.MethodGet, server.URL+"/api/statistics/leaderboard?period=weekly&rank_by=visits", nil, nil)
+	leaderboardResp := doJSONRequest(t, client, http.MethodGet, server.URL+"/api/statistics/leaderboard?rank_by=visits&include_auto_checkout=true", nil, nil)
 	if leaderboardResp.StatusCode != http.StatusOK {
 		defer leaderboardResp.Body.Close()
 		body, _ := io.ReadAll(leaderboardResp.Body)
