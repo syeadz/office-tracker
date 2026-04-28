@@ -136,3 +136,62 @@ jobs:
           echo "--- startup logs ---"
           cat /tmp/office-smoke.log || true
           exit 1
+
+  docker-build-and-health-test:
+    name: Docker Build & Health Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Build Docker image
+        run: docker build -t office-tracker:test -f build/Dockerfile .
+
+      - name: Start Docker container and verify /health
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Run container with default configs
+          docker run -d \
+            --name office-tracker-test \
+            -p 8080:8080 \
+            -e HTTP_PORT=8080 \
+            -e DB_PATH=/tmp/office-test.db \
+            office-tracker:test > /tmp/container-id.txt
+
+          CONTAINER_ID=$(cat /tmp/container-id.txt)
+
+          cleanup() {
+            docker stop "$CONTAINER_ID" 2>/dev/null || true
+            docker rm "$CONTAINER_ID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          # Wait for container to be healthy
+          for i in {1..60}; do
+            if docker logs "$CONTAINER_ID" 2>/dev/null | grep -q "listening on"; then
+              sleep 2  # Give it a moment to fully settle
+              break
+            fi
+            if [ $i -eq 60 ]; then
+              echo "Container failed to start in time"
+              echo "--- container logs ---"
+              docker logs "$CONTAINER_ID" || true
+              exit 1
+            fi
+            sleep 1
+          done
+
+          # Test /health endpoint
+          response=$(curl -fsS "http://127.0.0.1:8080/health" || echo "FAILED")
+
+          if [ "$response" = "ok" ]; then
+            echo "✓ Health test passed: /health returned 'ok'"
+            exit 0
+          else
+            echo "✗ Health test failed: /health returned '$response' (expected 'ok')"
+            echo "--- container logs ---"
+            docker logs "$CONTAINER_ID" || true
+            exit 1
+          fi
