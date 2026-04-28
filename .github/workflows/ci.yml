@@ -30,6 +30,7 @@ jobs:
 
   test:
     name: Unit/Race Test
+    needs: lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -49,6 +50,7 @@ jobs:
 
   integration-test:
     name: Integration (Tagged) Test
+    needs: lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -68,6 +70,7 @@ jobs:
 
   build:
     name: Build
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -87,6 +90,7 @@ jobs:
 
   startup-smoke:
     name: Startup Smoke Test
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -139,6 +143,7 @@ jobs:
 
   docker-build-and-health-test:
     name: Docker Build & Health Test
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
